@@ -125,7 +125,14 @@ const BalanceForm = () => {
   }
 
   return (
-    <div className='col-md-6 col-md-offset-3'>
+    <div className='col-md-6 col-md-offset-3' style={{ 
+      maxWidth: '600px',
+      margin: '0 auto',
+      padding: '40px',
+      backgroundColor: 'white',
+      borderRadius: '20px',
+      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
+    }}>
       <Form className="portfolio-balancer-form" onSubmit={submitData}>
         <Row>
           <Col sm="12">
