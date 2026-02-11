@@ -92,9 +92,13 @@ const BalanceForm = () => {
       bondValues: assets.bondsValues,
       contributionAmount: contributionAmount
     }
+    
+    const url = `${process.env.REACT_APP_API_BASE_URL}/portfolio/calculate`;
+    
+    console.log(url);
 
     axios.post(
-        'https://portfolio-balancer-server.azurewebsites.net/api/portfolio/calculate', 
+        url, 
         data, 
         { 'Content-Type': 'application/json' }
       )
