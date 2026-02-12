@@ -9,7 +9,11 @@ import './sass/app.scss'
 const App = () => {
   return (
     <Layout>
-      <Router>
+      <Router future={{
+          v7_startTransition: true,
+          v7_relativeSplatPath: true,
+      }}
+      >
         <Routes>
           <Route exact path='/portfolio-balancer-client' element={<Home />} />
           <Route component={<NotFound />} />

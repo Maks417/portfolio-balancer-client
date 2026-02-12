@@ -93,7 +93,7 @@ const BalanceForm = () => {
       contributionAmount: contributionAmount
     }
     
-    const url = `${process.env.REACT_APP_API_BASE_URL}/portfolio/calculate`;
+    const url = `${import.meta.env.VITE_API_BASE_URL}/portfolio/calculate`;
     
     console.log(url);
 
