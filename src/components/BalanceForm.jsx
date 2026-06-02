@@ -1,248 +1,478 @@
-import React, { useState } from 'react';
-import { Alert, Col, Row, Form, FormGroup, Button, Label, Input, FormFeedback } from 'reactstrap';
+import React, { useRef, useState } from 'react';
+import {
+  Alert,
+  Col,
+  Row,
+  Form,
+  FormGroup,
+  Button,
+  Label,
+  Input,
+  FormFeedback,
+  FormText,
+} from 'reactstrap';
 import RangeSlider from 'react-bootstrap-range-slider';
 import axios from 'axios';
+import {
+  currencyOptions,
+  formatAmount,
+  getRatioParts,
+  hasFilledPosition,
+  hasMixedCurrencies,
+  normalizeDiffAmount,
+  parseApiFieldErrors,
+  ratioTextFromSlider,
+  validateRatioText,
+} from '../utils/portfolioFormUtils';
 
-const currencyOptions = [
-  { value: 'rub', text: '₽' },
-  { value: 'usd', text: '$' },
-  { value: 'eur', text: '€' }
-];
+const NETWORK_ERROR_MESSAGE =
+  'Не удалось связаться с сервером. Попробуйте позже.';
 
 const BalanceForm = () => {
+  const resultRef = useRef(null);
 
-  const [ratioValidClass, setRatioValidClass] = useState('');
+  const [ratioValidClass, setRatioValidClass] = useState('is-valid');
   const [ratio, setRatio] = useState({ text: '50/50', value: 50 });
-  const [assets, setAssets] = useState({ 
-    stocksValues: [{ value: '', currency: currencyOptions[0].value }], 
-    bondsValues: [{ value: '', currency: currencyOptions[0].value }]
+  const [assets, setAssets] = useState({
+    stocksValues: [{ value: '', currency: currencyOptions[0].value }],
+    bondsValues: [{ value: '', currency: currencyOptions[0].value }],
   });
-  const [contributionAmount, setContributionAmount] = useState({ value: 0, currency: currencyOptions[0].value});
+  const [contributionAmount, setContributionAmount] = useState({
+    value: '',
+    currency: currencyOptions[0].value,
+  });
   const [submitDisabled, setSubmitDisabled] = useState(false);
-  const [resultBox, setResultBox] = useState({ showResult: false, resultBoxClass: 'success', text: '' });
+  const [clientErrors, setClientErrors] = useState({});
+  const [fieldErrors, setFieldErrors] = useState({});
+  const [result, setResult] = useState(null);
+
+  const ratioParts = getRatioParts(ratio.text);
+  const showCurrencyWarning = hasMixedCurrencies(
+    assets.stocksValues,
+    assets.bondsValues,
+    contributionAmount.currency,
+  );
+
+  const contributionNumber = Number(contributionAmount.value);
+  const isFormValid =
+    ratioValidClass === 'is-valid' &&
+    contributionAmount.value !== '' &&
+    !Number.isNaN(contributionNumber) &&
+    contributionNumber > 0 &&
+    (hasFilledPosition(assets.stocksValues) ||
+      hasFilledPosition(assets.bondsValues));
+
+  const applyRatio = (text, sliderValue) => {
+    setRatio({ text, value: sliderValue });
+    setRatioValidClass(validateRatioText(text));
+  };
 
   const validateRatio = (e) => {
-    let validClass = e.target.value === '100' ? 'is-valid' : 'is-invalid';
-    const arr = e.target.value.split('/')
-
-    if(e.target.value.length > 3 && e.target.value.length < 6){   
-      validClass = arr.length === 2 && arr.reduce((prev, curr) => (Number(prev) || 0) + (Number(curr) || 0)) === 100 ? "is-valid" : "is-invalid"
-    }
-
-    setRatioValidClass(validClass)
-    setRatio({ text: e.target.value, value: Number(arr[0]) })
-  }
+    const text = e.target.value;
+    const parts = text.split('/');
+    applyRatio(text, Number(parts[0]) || 0);
+  };
 
   const handleSliderRatio = (e) => {
-    let newText = ''
-    const bondsPart = 100 - e.target.value;
-    switch(bondsPart) {
-      case 0:
-        newText = '100'
-        break;
-      case 100:
-        newText = '0'
-        break;
-      default:
-        newText = `${e.target.value}/${bondsPart}`
-    }
-
-    setRatio({ text: newText, value: e.target.value })
-  }
+    const sliderValue = Number(e.target.value);
+    applyRatio(ratioTextFromSlider(sliderValue), sliderValue);
+  };
 
   const addValueField = (e, name, valuesArr) => {
-    e.stopPropagation();
-    setAssets(prevState => ({ ...prevState, [name]: [...valuesArr, { value: '', currency: currencyOptions[0].value }] }));
-  }
+    e.preventDefault();
+    setAssets((prevState) => ({
+      ...prevState,
+      [name]: [
+        ...valuesArr,
+        { value: '', currency: currencyOptions[0].value },
+      ],
+    }));
+  };
 
-  const removeValueField = (i, name, valuesArr) => {
-    let values = valuesArr;
-    values.splice(i, 1);
-    setAssets(prevState => ({ ...prevState, [name]: [...values] }));
-  }
+  const removeValueField = (index, name, valuesArr) => {
+    setAssets((prevState) => ({
+      ...prevState,
+      [name]: valuesArr.filter((_, i) => i !== index),
+    }));
+  };
 
-  const handleValues = (i, e, name, valuesArr) => {
-    let values = valuesArr;
-
-    if(e.target.type === 'number'){
-      values[i].value = e.target.value;
-    } else {
-      values[i].currency = e.target.value;
-    }
-
-    setAssets(prevState => ({ ...prevState, [name]: [...values] }));
-  }
+  const handleValues = (index, e, name, valuesArr) => {
+    const values = valuesArr.map((row, i) => {
+      if (i !== index) {
+        return row;
+      }
+      if (e.target.type === 'number') {
+        return { ...row, value: e.target.value };
+      }
+      return { ...row, currency: e.target.value };
+    });
+    setAssets((prevState) => ({ ...prevState, [name]: values }));
+  };
 
   const changeContribution = (e) => {
-    const contribution = e.target.type === 'number' 
-      ? { value: e.target.value, currency: contributionAmount.currency }
-      :  { value: contributionAmount.value, currency: e.target.value };
+    if (e.target.type === 'number') {
+      setContributionAmount((prev) => ({ ...prev, value: e.target.value }));
+    } else {
+      setContributionAmount((prev) => ({ ...prev, currency: e.target.value }));
+    }
+    setClientErrors((prev) => ({ ...prev, contribution: undefined }));
+  };
 
-    setContributionAmount(contribution)
-  }
+  const runClientValidation = () => {
+    const errors = {};
+
+    if (ratioValidClass !== 'is-valid') {
+      errors.ratio =
+        'Значение пропорции должно быть 100, 0 или дробное (например, 50/50).';
+    }
+
+    if (
+      !hasFilledPosition(assets.stocksValues) &&
+      !hasFilledPosition(assets.bondsValues)
+    ) {
+      errors.stocks =
+        'Укажите хотя бы одну позицию в акциях или облигациях.';
+      errors.bonds = errors.stocks;
+    }
+
+    const amount = Number(contributionAmount.value);
+    if (contributionAmount.value === '' || Number.isNaN(amount) || amount <= 0) {
+      errors.contribution = 'Введите сумму взноса больше 0.';
+    }
+
+    setClientErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const scrollToResult = () => {
+    requestAnimationFrame(() => {
+      resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+  };
 
   const submitData = (e) => {
     e.preventDefault();
+    setFieldErrors({});
+    setResult(null);
 
+    if (!runClientValidation()) {
+      return;
+    }
+
+    const contributionNumber = Number(contributionAmount.value);
     setSubmitDisabled(true);
 
     const data = {
       ratio: ratio.text,
       stockValues: assets.stocksValues,
       bondValues: assets.bondsValues,
-      contributionAmount: contributionAmount
-    }
-    
+      contributionAmount: {
+        value: String(contributionNumber),
+        currency: contributionAmount.currency,
+      },
+    };
+
     const url = `${import.meta.env.VITE_API_BASE_URL}/portfolio/calculate`;
-    
-    console.log(url);
 
-    axios.post(
-        url, 
-        data, 
-        { 'Content-Type': 'application/json' }
-      )
+    axios
+      .post(url, data, { headers: { 'Content-Type': 'application/json' } })
       .then((response) => {
+        const currency = response.data.currency ?? contributionAmount.currency;
+        const stocksAmount = normalizeDiffAmount(response.data.stocksDiff);
+        const bondsAmount = normalizeDiffAmount(response.data.bondsDiff);
 
-        const currencySign = currencyOptions.find(e => e.value === response.data.currency).text;
-
-        setResultBox({
-          showResult: true,
-          resultBoxClass: 'success',
-          text: `Купить акций на: ${currencySign}${JSON.stringify(response.data.stocksDiff)}. Купить облигаций на: ${currencySign}${JSON.stringify(response.data.bondsDiff)}`
-        })
+        setResult({
+          type: 'success',
+          currency,
+          stocksAmount,
+          bondsAmount,
+        });
+        scrollToResult();
       })
       .catch((error) => {
-        if(error.response && error.response.status === 400) {
-          setResultBox({
-            showResult: true,
-            resultBoxClass: 'danger',
-            text: JSON.stringify(error.response.data.errors ?? error.response.data)
-          })
-        } else {
-          console.error(error.response ?? error)
+        if (error.response?.status === 400) {
+          const { fieldErrors: apiFieldErrors, summary } = parseApiFieldErrors(
+            error.response.data,
+          );
+          setFieldErrors(apiFieldErrors);
+          setResult({ type: 'error', summary });
+          scrollToResult();
+          return;
         }
+
+        console.error(error.response ?? error);
+        setResult({ type: 'error', summary: NETWORK_ERROR_MESSAGE });
+        scrollToResult();
       })
       .finally(() => {
-        setSubmitDisabled(false)
+        setSubmitDisabled(false);
       });
-  }
+  };
+
+  const renderPositionRows = (name, labelId, valuesArr, fieldErrorKey) => (
+    <FormGroup className={`form-group ${name === 'stocksValues' ? 'stocks-group' : 'bonds-group'}`}>
+      <Label for={labelId}>{name === 'stocksValues'
+        ? 'Добавьте стоимость каждой позиции в акциях'
+        : 'Добавьте стоимость каждой позиции в облигациях'}</Label>
+      {valuesArr.map((element, index) => (
+        <div className="position-row row justify-content-center" key={`${name}-${index}`}>
+          {index > 0 ? (
+            <Button
+              type="button"
+              className="number-field minus col-auto"
+              aria-label={`Удалить позицию ${index + 1}`}
+              onClick={() => removeValueField(index, name, valuesArr)}
+            >
+              <i className="fa fa-minus" aria-hidden="true" />
+            </Button>
+          ) : (
+            <span className="position-row__spacer col-auto" aria-hidden="true" />
+          )}
+          <Input
+            className="col position-row__amount number-field"
+            type="number"
+            min="0"
+            step="any"
+            name={`${name}_value_${index}`}
+            value={element.value}
+            placeholder={`Позиция ${index + 1}`}
+            invalid={Boolean(clientErrors[fieldErrorKey] || fieldErrors[fieldErrorKey])}
+            onChange={(e) => handleValues(index, e, name, valuesArr)}
+          />
+          <Input
+            className="col-auto position-row__currency number-field"
+            type="select"
+            name={`${name}_currency_${index}`}
+            value={element.currency}
+            aria-label={`Валюта позиции ${index + 1}`}
+            onChange={(e) => handleValues(index, e, name, valuesArr)}
+          >
+            {currencyOptions.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.text}
+              </option>
+            ))}
+          </Input>
+        </div>
+      ))}
+      <Button
+        type="button"
+        color="secondary"
+        outline
+        className="btn-add-position w-100"
+        onClick={(e) => addValueField(e, name, valuesArr)}
+      >
+        <i className="fa fa-plus me-2" aria-hidden="true" />
+        Добавить позицию
+      </Button>
+      {(clientErrors[fieldErrorKey] || fieldErrors[fieldErrorKey]) && (
+        <FormFeedback className="d-block">
+          {clientErrors[fieldErrorKey] || fieldErrors[fieldErrorKey]}
+        </FormFeedback>
+      )}
+    </FormGroup>
+  );
 
   return (
-    <div className='col-md-6 col-md-offset-3' style={{ 
-      maxWidth: '600px',
-      margin: '0 auto',
-      padding: '40px',
-      backgroundColor: 'white',
-      borderRadius: '20px',
-      boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
-    }}>
-      <Form className="portfolio-balancer-form" onSubmit={submitData}>
-        <Row>
-          <Col sm="12">
-            <FormGroup className='form-group'>
-              <Label for="ratio">Пропорция портфеля (акции/облигации, %)</Label>
-              <div className='range-slider__container'>
-                <RangeSlider 
-                  value={ratio.value}
-                  tooltip='off'
-                  onChange={handleSliderRatio}
-                  size='sm' />
-              </div>
-              <Input required className={ratioValidClass} type="text" name="ratio" id="ratio" value={ratio.text} placeholder="e.g. 70/30" onChange={validateRatio} />
-              <FormFeedback>Значение пропорции должно быть целое (100) или дробное (например, 50/50)</FormFeedback>
-            </FormGroup>
-          </Col>
-        </Row>
-        <Row>
-          <Col sm="12" md="6">
-            <FormGroup className="form-group stocks-group">
-              <Label for="stockValue">Добавьте стоимость каждой позиции в акциях</Label>
-              {assets.stocksValues.map((element, index) => (
-                <div className='row justify-content-center' key={index}>
-                  {
-                    index ? 
-                    <Button className="number-field minus col-1" 
-                      onClick={() => removeValueField(index, 'stocksValues', assets.stocksValues)}>
-                        <i className="fa fa-minus"></i>
-                    </Button> 
-                    : null
-                  }
-                  <Input className={index ? 'col-7 number-field' : 'offset-1 col-7 number-field'} type="number" name={`stockValue_value_${index}`} value={element.value} onChange={e => handleValues(index, e, 'stocksValues', assets.stocksValues)} />
-                  <Input className="col-3 number-field" type="select" name={`stockValue_currency_${index}`} value={element.currency} onChange={e => handleValues(index, e, 'stocksValues', assets.stocksValues)}>
-                    {currencyOptions.map((item, i) => (
-                      <option key={i} value={item.value}>{item.text}</option>
-                    ))}
-                  </Input>
-                </div>
-              ))}
-              <Button className="number-field plus"
-                onClick={e => addValueField(e, 'stocksValues', assets.stocksValues)}>
-                  <i className="fa fa-plus"></i>
-              </Button>
-            </FormGroup>
-          </Col>
-          <Col sm="12" md="6">
-            <FormGroup className="form-group bonds-group">
-                <Label for="bondValue">Добавьте стоимость каждой позиции в облигациях</Label>
-                {assets.bondsValues.map((element, index) => (
-                  <div className='row justify-content-center' key={index}>
-                    {
-                      index ? 
-                      <Button className="number-field minus col-1" 
-                        onClick={() => removeValueField(index, 'bondsValues', assets.bondsValues)}>
-                          <i className="fa fa-minus"></i>
-                      </Button> 
-                      : null
-                    }
-                    <Input className={index ? 'col-7 number-field' : 'offset-1 col-7 number-field'} type="number" name={`bondValue_value_${index}`} value={element.value} onChange={e => handleValues(index, e, 'bondsValues', assets.bondsValues)} />
-                    <Input className="col-3 number-field" type="select" name={`bondValue_currency_${index}`} value={element.currency} onChange={e => handleValues(index, e, 'bondsValues', assets.bondsValues)}>
-                      {currencyOptions.map((item, i) => (
-                        <option key={i} value={item.value}>{item.text}</option>
-                      ))}
-                    </Input>
-                  </div>
+    <div className="calculator-card">
+      <header className="calculator-card__header">
+        <h1 className="calculator-card__title">Балансировщик портфеля</h1>
+        <p className="calculator-card__subtitle">
+          Укажите текущие позиции и целевую долю акций/облигаций — подскажем,
+          сколько докупить.
+        </p>
+      </header>
+
+      <Form className="portfolio-balancer-form" onSubmit={submitData} noValidate>
+        <section className="form-section" aria-labelledby="section-ratio">
+          <h2 className="form-section__title" id="section-ratio">
+            <span className="form-section__number">1</span>
+            Целевая пропорция
+          </h2>
+          <FormGroup className="form-group">
+            <Label for="ratio">Пропорция портфеля (акции/облигации, %)</Label>
+            <p className="ratio-summary" aria-live="polite">
+              Акции {ratioParts.stocks}% · Облигации {ratioParts.bonds}%
+            </p>
+            <div className="range-slider__container">
+              <RangeSlider
+                value={ratio.value}
+                tooltip="off"
+                variant="primary"
+                onChange={handleSliderRatio}
+                size="sm"
+                aria-labelledby="ratio"
+              />
+            </div>
+            <Input
+              required
+              className={ratioValidClass}
+              type="text"
+              name="ratio"
+              id="ratio"
+              value={ratio.text}
+              placeholder="70/30"
+              invalid={Boolean(clientErrors.ratio || fieldErrors.ratio)}
+              onChange={validateRatio}
+            />
+            <FormText className="ratio-helper">
+              Введите 100 (только акции), 0 (только облигации) или дробь, где
+              сумма равна 100 (например, 70/30).
+            </FormText>
+            <FormFeedback>
+              Значение пропорции должно быть целое (100) или дробное (например,
+              50/50)
+            </FormFeedback>
+            {(clientErrors.ratio || fieldErrors.ratio) && (
+              <FormFeedback className="d-block">
+                {clientErrors.ratio || fieldErrors.ratio}
+              </FormFeedback>
+            )}
+          </FormGroup>
+        </section>
+
+        <section className="form-section" aria-labelledby="section-portfolio">
+          <h2 className="form-section__title" id="section-portfolio">
+            <span className="form-section__number">2</span>
+            Текущий портфель
+          </h2>
+          {showCurrencyWarning && (
+            <Alert color="warning" className="currency-warning">
+              <i className="fa fa-triangle-exclamation me-2" aria-hidden="true" />
+              Позиции указаны в разных валютах. Конвертация выполняется на
+              сервере.
+            </Alert>
+          )}
+          {!hasFilledPosition(assets.stocksValues) &&
+            !hasFilledPosition(assets.bondsValues) && (
+              <FormText className="portfolio-hint d-block text-center mb-3">
+                Укажите хотя бы одну позицию в акциях или облигациях.
+              </FormText>
+            )}
+          <Row>
+            <Col sm="12" md="6">
+              {renderPositionRows('stocksValues', 'stockValue', assets.stocksValues, 'stocks')}
+            </Col>
+            <Col sm="12" md="6">
+              {renderPositionRows('bondsValues', 'bondValue', assets.bondsValues, 'bonds')}
+            </Col>
+          </Row>
+        </section>
+
+        <section className="form-section" aria-labelledby="section-contribution">
+          <h2 className="form-section__title" id="section-contribution">
+            <span className="form-section__number">3</span>
+            Новый взнос
+          </h2>
+          <FormGroup className="form-group">
+            <Label for="contributionAmount">Сумма, которую хотите внести</Label>
+            <div className="row justify-content-center contribution-row">
+              <Input
+                required
+                className="col contribution-row__amount number-field"
+                type="number"
+                min="1"
+                step="any"
+                name="contributionAmount"
+                id="contributionAmount"
+                value={contributionAmount.value}
+                placeholder="50 000"
+                invalid={Boolean(clientErrors.contribution || fieldErrors.contribution)}
+                onChange={changeContribution}
+              />
+              <Input
+                className="col-auto contribution-row__currency number-field"
+                type="select"
+                name="contributionAmount_currency"
+                value={contributionAmount.currency}
+                aria-label="Валюта взноса"
+                onChange={changeContribution}
+              >
+                {currencyOptions.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.text}
+                  </option>
                 ))}
-                <Button className="number-field plus" 
-                  onClick={e => addValueField(e, 'bondsValues', assets.bondsValues)}>
-                    <i className="fa fa-plus"></i>
-                </Button>
-            </FormGroup>
-          </Col>
-        </Row>
+              </Input>
+            </div>
+            {(clientErrors.contribution || fieldErrors.contribution) && (
+              <FormFeedback className="d-block">
+                {clientErrors.contribution || fieldErrors.contribution}
+              </FormFeedback>
+            )}
+          </FormGroup>
+        </section>
+
         <Row>
-          <Col sm="12">
-            <FormGroup className='form-group'>
-              <Label for="contributionAmount">Сумма, которую хотите внести</Label>
-              <div className='row justify-content-center'>
-                <Input required className='offset-1 number-field' type="number" name="contributionAmount" id="contributionAmount" onChange={changeContribution}/>
-                <Input className="col-2 number-field" type="select" name={'contributionAmount_currency'} value={contributionAmount.currency} onChange={changeContribution}>
-                      {currencyOptions.map((item, i) => (
-                        <option key={i} value={item.value}>{item.text}</option>
-                      ))}
-                </Input>
-              </div>
-            </FormGroup>
-          </Col>
-        </Row>
-        <Row>
-          <Col className='text-center'>
-            <Button color="primary" type="submit" disabled={submitDisabled}>Рассчитать</Button>
+          <Col className="text-center">
+            <Button
+              color="primary"
+              type="submit"
+              className="btn-calculate"
+              disabled={submitDisabled || !isFormValid}
+            >
+              {submitDisabled ? (
+                <>
+                  <span
+                    className="spinner-border spinner-border-sm me-2"
+                    role="status"
+                    aria-hidden="true"
+                  />
+                  Расчёт…
+                </>
+              ) : (
+                'Рассчитать'
+              )}
+            </Button>
           </Col>
         </Row>
       </Form>
 
-      <div className='col-10 offset-1'>
-        {
-          resultBox.showResult ?
-          <Alert show={resultBox.showResult.toString()} variant={resultBox.resultBoxClass}>
-              {resultBox.text}
+      <section
+        ref={resultRef}
+        className="calculator-result"
+        aria-labelledby="section-result"
+      >
+        <h2 className="form-section__title visually-hidden" id="section-result">
+          Результат
+        </h2>
+
+        {result?.type === 'success' && (
+          <div className="result-success" role="status" aria-live="polite">
+            <Alert color="success" className="result-alert">
+              <i className="fa fa-circle-check me-2" aria-hidden="true" />
+              <strong>Рекомендация по взносу</strong>
+            </Alert>
+            <div className="result-metrics">
+              <div className="result-metric">
+                <span className="result-metric__label">Акции</span>
+                <span className="result-metric__value">
+                  {result.stocksAmount != null
+                    ? formatAmount(result.stocksAmount, result.currency)
+                    : '—'}
+                </span>
+              </div>
+              <div className="result-metric">
+                <span className="result-metric__label">Облигации</span>
+                <span className="result-metric__value">
+                  {result.bondsAmount != null
+                    ? formatAmount(result.bondsAmount, result.currency)
+                    : '—'}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {result?.type === 'error' && (
+          <Alert color="danger" className="result-alert" role="alert">
+            <i className="fa fa-circle-exclamation me-2" aria-hidden="true" />
+            {result.summary}
           </Alert>
-          : null
-        }
-      </div>
+        )}
+      </section>
     </div>
   );
-}
+};
 
 export default BalanceForm;

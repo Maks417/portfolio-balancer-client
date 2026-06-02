@@ -1,14 +1,43 @@
-// # Color variables
-$color-white: #fff;
-$color-light-gray: #ced4da;
-$color-gray: #e9ecef;
-$color-red: #E01A76;
-$color-dark-blue: #0366d6;
-$color-blue: #1b6ec2;
-$color-border-blue: #1861ac;
-$color-light-black: #212529;
+// Primary (single indigo family for all accents)
+$color-primary: #5b6cf0;
+$color-primary-hover: #4a5ad4;
+$color-primary-soft: #eef0ff;
+$color-primary-border: #c5cbf7;
+$color-border-primary: #5b6cf0;
 
-// # Sizes
-$body-padding: 30px 0;
-$primary-button-padding: 10px 20px;
+// Surfaces & text
+$color-page-bg: #eef1f8;
+$color-white: #fff;
+$color-surface: #ffffff;
+$color-text: #1a1d26;
+$color-light-black: $color-text;
+$color-muted: #5c6370;
+$color-border: #d8dce8;
+$color-light-gray: $color-border;
+$color-gray: #f0f2f7;
+$color-section-bg: #f7f8fb;
+
+// Semantic (muted, harmonized with light UI)
+$color-success: #2d9d78;
+$color-success-bg: #e8f5ef;
+$color-danger: #c94a4a;
+$color-danger-bg: #fdeeee;
+$color-warning: #9a7b2e;
+$color-warning-bg: #fff8e6;
+$color-red: $color-danger;
+
+// Legacy aliases
+$color-primary-dark: $color-primary-hover;
+$color-dark-blue: $color-primary;
+$color-blue: $color-primary;
+$color-border-blue: $color-border-primary;
+
+// Layout
+$body-padding: 24px 0;
+$primary-button-padding: 0.65rem 1.5rem;
 $form-field-margin: 5px;
+$card-max-width: 640px;
+$card-radius: 16px;
+$card-shadow: 0 4px 24px rgba(26, 29, 38, 0.08);
+$card-padding-mobile: 24px;
+$card-padding-desktop: 36px;

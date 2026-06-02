@@ -4,20 +4,14 @@ import BalanceForm from './BalanceForm';
 
 const Home = () => {
   return (
-    <Container style={{ 
-      display: 'flex', 
-      justifyContent: 'center', 
-      alignItems: 'center', 
-      minHeight: '100vh',
-      padding: '20px'
-    }}>
-      <Row style={{ width: '100%' }}>
-        <Col className='row justify-content-md-center'>
+    <Container className="calculator-page">
+      <Row className="w-100 justify-content-center">
+        <Col xs="12">
           <BalanceForm />
         </Col>
       </Row>
     </Container>
   );
-}
+};
 
 export default Home;
