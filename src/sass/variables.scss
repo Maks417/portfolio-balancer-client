@@ -1,43 +1,56 @@
-// Primary (single indigo family for all accents)
-$color-primary: #5b6cf0;
-$color-primary-hover: #4a5ad4;
-$color-primary-soft: #eef0ff;
-$color-primary-border: #c5cbf7;
-$color-border-primary: #5b6cf0;
+// Brand palette: calm, finance-oriented blues with clear semantic accents.
+$color-primary: #2563eb;
+$color-primary-hover: #1d4ed8;
+$color-primary-soft: #eff6ff;
+$color-primary-border: #bfdbfe;
+$color-primary-strong: #1e3a8a;
+$color-border-primary: $color-primary;
 
 // Surfaces & text
-$color-page-bg: #eef1f8;
+$color-page-bg: #f3f7fb;
+$color-page-bg-deep: #e8f0f8;
 $color-white: #fff;
 $color-surface: #ffffff;
-$color-text: #1a1d26;
+$color-surface-raised: #f8fafc;
+$color-text: #0f172a;
 $color-light-black: $color-text;
-$color-muted: #5c6370;
-$color-border: #d8dce8;
+$color-muted: #64748b;
+$color-muted-strong: #475569;
+$color-border: #dbe5f0;
 $color-light-gray: $color-border;
-$color-gray: #f0f2f7;
-$color-section-bg: #f7f8fb;
+$color-gray: #eef3f8;
+$color-section-bg: #f8fbff;
 
-// Semantic (muted, harmonized with light UI)
-$color-success: #2d9d78;
-$color-success-bg: #e8f5ef;
-$color-danger: #c94a4a;
-$color-danger-bg: #fdeeee;
-$color-warning: #9a7b2e;
-$color-warning-bg: #fff8e6;
+// Semantic colors
+$color-success: #047857;
+$color-success-bg: #ecfdf5;
+$color-danger: #dc2626;
+$color-danger-bg: #fef2f2;
+$color-warning: #b45309;
+$color-warning-bg: #fffbeb;
 $color-red: $color-danger;
 
 // Legacy aliases
 $color-primary-dark: $color-primary-hover;
-$color-dark-blue: $color-primary;
+$color-dark-blue: $color-primary-strong;
 $color-blue: $color-primary;
 $color-border-blue: $color-border-primary;
 
+// Typography
+$font-family-base: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+$font-size-body: 1rem;
+$line-height-body: 1.55;
+
 // Layout
-$body-padding: 24px 0;
-$primary-button-padding: 0.65rem 1.5rem;
+$body-padding: 0;
+$page-padding-mobile: 16px;
+$page-padding-desktop: 32px;
+$primary-button-padding: 0.85rem 1.25rem;
 $form-field-margin: 5px;
-$card-max-width: 640px;
-$card-radius: 16px;
-$card-shadow: 0 4px 24px rgba(26, 29, 38, 0.08);
-$card-padding-mobile: 24px;
+$card-max-width: 760px;
+$card-radius: 28px;
+$section-radius: 20px;
+$control-radius: 14px;
+$card-shadow: 0 24px 70px rgba(15, 23, 42, 0.12);
+$card-padding-mobile: 20px;
 $card-padding-desktop: 36px;
