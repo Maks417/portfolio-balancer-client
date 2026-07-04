@@ -1,8 +1,6 @@
 import React, { useRef, useState } from 'react';
 import {
   Alert,
-  Col,
-  Row,
   Form,
   FormGroup,
   Button,
@@ -209,73 +207,84 @@ const BalanceForm = () => {
       });
   };
 
-  const renderPositionRows = (name, labelId, valuesArr, fieldErrorKey) => (
-    <FormGroup className={`form-group ${name === 'stocksValues' ? 'stocks-group' : 'bonds-group'}`}>
-      <Label for={labelId}>{name === 'stocksValues'
-        ? 'Добавьте стоимость каждой позиции в акциях'
-        : 'Добавьте стоимость каждой позиции в облигациях'}</Label>
-      {valuesArr.map((element, index) => (
-        <div className="position-row row justify-content-center" key={`${name}-${index}`}>
-          {index > 0 ? (
-            <Button
-              type="button"
-              className="number-field minus col-auto"
-              aria-label={`Удалить позицию ${index + 1}`}
-              onClick={() => removeValueField(index, name, valuesArr)}
-            >
-              <i className="fa fa-minus" aria-hidden="true" />
-            </Button>
-          ) : (
-            <span className="position-row__spacer col-auto" aria-hidden="true" />
-          )}
-          <Input
-            className="col position-row__amount number-field"
-            type="number"
-            min="0"
-            step="any"
-            name={`${name}_value_${index}`}
-            value={element.value}
-            placeholder={`Позиция ${index + 1}`}
-            invalid={Boolean(clientErrors[fieldErrorKey] || fieldErrors[fieldErrorKey])}
-            onChange={(e) => handleValues(index, e, name, valuesArr)}
-          />
-          <Input
-            className="col-auto position-row__currency number-field"
-            type="select"
-            name={`${name}_currency_${index}`}
-            value={element.currency}
-            aria-label={`Валюта позиции ${index + 1}`}
-            onChange={(e) => handleValues(index, e, name, valuesArr)}
-          >
-            {currencyOptions.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.text}
-              </option>
-            ))}
-          </Input>
+  const renderPositionRows = (name, labelId, valuesArr, fieldErrorKey) => {
+    const isStocks = name === 'stocksValues';
+    const label = isStocks ? 'Акции' : 'Облигации';
+    const description = isStocks
+      ? 'Стоимость каждой позиции в акциях'
+      : 'Стоимость каждой позиции в облигациях';
+
+    return (
+      <FormGroup className={`form-group asset-group ${isStocks ? 'stocks-group' : 'bonds-group'}`}>
+        <div className="asset-group__header">
+          <Label for={labelId}>{label}</Label>
+          <span className="asset-group__hint">{description}</span>
         </div>
-      ))}
-      <Button
-        type="button"
-        color="secondary"
-        outline
-        className="btn-add-position w-100"
-        onClick={(e) => addValueField(e, name, valuesArr)}
-      >
-        <i className="fa fa-plus me-2" aria-hidden="true" />
-        Добавить позицию
-      </Button>
-      {(clientErrors[fieldErrorKey] || fieldErrors[fieldErrorKey]) && (
-        <FormFeedback className="d-block">
-          {clientErrors[fieldErrorKey] || fieldErrors[fieldErrorKey]}
-        </FormFeedback>
-      )}
-    </FormGroup>
-  );
+        {valuesArr.map((element, index) => (
+          <div className="position-row" key={`${name}-${index}`}>
+            {index > 0 ? (
+              <Button
+                type="button"
+                className="number-field minus"
+                aria-label={`Удалить позицию ${index + 1}`}
+                onClick={() => removeValueField(index, name, valuesArr)}
+              >
+                <i className="fa fa-minus" aria-hidden="true" />
+              </Button>
+            ) : (
+              <span className="position-row__spacer" aria-hidden="true" />
+            )}
+            <Input
+              className="position-row__amount number-field"
+              type="number"
+              min="0"
+              step="any"
+              name={`${name}_value_${index}`}
+              id={index === 0 ? labelId : undefined}
+              value={element.value}
+              placeholder={`Позиция ${index + 1}`}
+              invalid={Boolean(clientErrors[fieldErrorKey] || fieldErrors[fieldErrorKey])}
+              onChange={(e) => handleValues(index, e, name, valuesArr)}
+            />
+            <Input
+              className="position-row__currency number-field"
+              type="select"
+              name={`${name}_currency_${index}`}
+              value={element.currency}
+              aria-label={`Валюта позиции ${index + 1}`}
+              onChange={(e) => handleValues(index, e, name, valuesArr)}
+            >
+              {currencyOptions.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.text}
+                </option>
+              ))}
+            </Input>
+          </div>
+        ))}
+        <Button
+          type="button"
+          color="secondary"
+          outline
+          className="btn-add-position w-100"
+          onClick={(e) => addValueField(e, name, valuesArr)}
+        >
+          <i className="fa fa-plus me-2" aria-hidden="true" />
+          Добавить позицию
+        </Button>
+        {(clientErrors[fieldErrorKey] || fieldErrors[fieldErrorKey]) && (
+          <FormFeedback className="d-block">
+            {clientErrors[fieldErrorKey] || fieldErrors[fieldErrorKey]}
+          </FormFeedback>
+        )}
+      </FormGroup>
+    );
+  };
 
   return (
     <div className="calculator-card">
       <header className="calculator-card__header">
+        <span className="calculator-card__eyebrow">Финансовый калькулятор</span>
         <h1 className="calculator-card__title">Балансировщик портфеля</h1>
         <p className="calculator-card__subtitle">
           Укажите текущие позиции и целевую долю акций/облигаций — подскажем,
@@ -287,12 +296,16 @@ const BalanceForm = () => {
         <section className="form-section" aria-labelledby="section-ratio">
           <h2 className="form-section__title" id="section-ratio">
             <span className="form-section__number">1</span>
-            Целевая пропорция
+            <span>
+              Целевая пропорция
+              <small>Настройте желаемый баланс портфеля</small>
+            </span>
           </h2>
           <FormGroup className="form-group">
             <Label for="ratio">Пропорция портфеля (акции/облигации, %)</Label>
             <p className="ratio-summary" aria-live="polite">
-              Акции {ratioParts.stocks}% · Облигации {ratioParts.bonds}%
+              <span>Акции {ratioParts.stocks}%</span>
+              <span>Облигации {ratioParts.bonds}%</span>
             </p>
             <div className="range-slider__container">
               <RangeSlider
@@ -334,7 +347,10 @@ const BalanceForm = () => {
         <section className="form-section" aria-labelledby="section-portfolio">
           <h2 className="form-section__title" id="section-portfolio">
             <span className="form-section__number">2</span>
-            Текущий портфель
+            <span>
+              Текущий портфель
+              <small>Добавьте позиции по классам активов</small>
+            </span>
           </h2>
           {showCurrencyWarning && (
             <Alert color="warning" className="currency-warning">
@@ -345,31 +361,30 @@ const BalanceForm = () => {
           )}
           {!hasFilledPosition(assets.stocksValues) &&
             !hasFilledPosition(assets.bondsValues) && (
-              <FormText className="portfolio-hint d-block text-center mb-3">
+              <FormText className="portfolio-hint d-block">
                 Укажите хотя бы одну позицию в акциях или облигациях.
               </FormText>
             )}
-          <Row>
-            <Col sm="12" md="6">
-              {renderPositionRows('stocksValues', 'stockValue', assets.stocksValues, 'stocks')}
-            </Col>
-            <Col sm="12" md="6">
-              {renderPositionRows('bondsValues', 'bondValue', assets.bondsValues, 'bonds')}
-            </Col>
-          </Row>
+          <div className="portfolio-grid">
+            {renderPositionRows('stocksValues', 'stockValue', assets.stocksValues, 'stocks')}
+            {renderPositionRows('bondsValues', 'bondValue', assets.bondsValues, 'bonds')}
+          </div>
         </section>
 
         <section className="form-section" aria-labelledby="section-contribution">
           <h2 className="form-section__title" id="section-contribution">
             <span className="form-section__number">3</span>
-            Новый взнос
+            <span>
+              Новый взнос
+              <small>Сумма для распределения между активами</small>
+            </span>
           </h2>
           <FormGroup className="form-group">
             <Label for="contributionAmount">Сумма, которую хотите внести</Label>
-            <div className="row justify-content-center contribution-row">
+            <div className="contribution-row">
               <Input
                 required
-                className="col contribution-row__amount number-field"
+                className="contribution-row__amount number-field"
                 type="number"
                 min="1"
                 step="any"
@@ -381,7 +396,7 @@ const BalanceForm = () => {
                 onChange={changeContribution}
               />
               <Input
-                className="col-auto contribution-row__currency number-field"
+                className="contribution-row__currency number-field"
                 type="select"
                 name="contributionAmount_currency"
                 value={contributionAmount.currency}
@@ -403,29 +418,30 @@ const BalanceForm = () => {
           </FormGroup>
         </section>
 
-        <Row>
-          <Col className="text-center">
-            <Button
-              color="primary"
-              type="submit"
-              className="btn-calculate"
-              disabled={submitDisabled || !isFormValid}
-            >
-              {submitDisabled ? (
-                <>
-                  <span
-                    className="spinner-border spinner-border-sm me-2"
-                    role="status"
-                    aria-hidden="true"
-                  />
-                  Расчёт…
-                </>
-              ) : (
-                'Рассчитать'
-              )}
-            </Button>
-          </Col>
-        </Row>
+        <div className="form-actions">
+          <Button
+            color="primary"
+            type="submit"
+            className="btn-calculate"
+            disabled={submitDisabled || !isFormValid}
+          >
+            {submitDisabled ? (
+              <>
+                <span
+                  className="spinner-border spinner-border-sm me-2"
+                  role="status"
+                  aria-hidden="true"
+                />
+                Расчёт…
+              </>
+            ) : (
+              'Рассчитать'
+            )}
+          </Button>
+          <p className="form-actions__hint">
+            Расчёт покажет, какую часть взноса направить в акции и облигации.
+          </p>
+        </div>
       </Form>
 
       <section

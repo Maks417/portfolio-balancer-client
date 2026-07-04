@@ -1,14 +1,7 @@
 import React from 'react';
-import { Container } from 'reactstrap';
 
-const Layout = (props) => {
-    return (
-      <div>
-        <Container>
-          {props.children}
-        </Container>
-      </div>
-    );
-}
+const Layout = ({ children }) => {
+  return <div className="app-shell">{children}</div>;
+};
 
 export default Layout;

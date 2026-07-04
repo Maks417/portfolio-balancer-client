@@ -4,8 +4,19 @@
 @import "bootstrap/scss/mixins";
 @import "react-bootstrap-range-slider/dist/react-bootstrap-range-slider.css";
 
+* {
+  box-sizing: border-box;
+}
+
 body {
   padding: $body-padding;
+  min-width: 320px;
+  font-family: $font-family-base;
+  font-size: $font-size-body;
+  line-height: $line-height-body;
+  background:
+    radial-gradient(circle at top left, rgba($color-primary, 0.12), transparent 34rem),
+    linear-gradient(180deg, $color-page-bg 0%, $color-page-bg-deep 100%);
 }
 
 a {
@@ -16,13 +27,22 @@ code {
   color: $color-danger;
 }
 
+.app-shell {
+  min-height: 100vh;
+}
+
 .calculator-page {
   display: flex;
   justify-content: center;
-  align-items: center;
+  align-items: flex-start;
   min-height: 100vh;
-  padding: 20px;
+  padding: $page-padding-mobile;
   width: 100%;
+
+  @include media-breakpoint-up(md) {
+    align-items: center;
+    padding: $page-padding-desktop;
+  }
 }
 
 .calculator-card {
@@ -35,48 +55,71 @@ code {
   box-shadow: $card-shadow;
   width: 100%;
   color: $color-text;
+  overflow: hidden;
 
   @include media-breakpoint-up(md) {
     padding: $card-padding-desktop;
   }
 
   &__header {
-    text-align: center;
-    margin-bottom: 1.75rem;
+    text-align: left;
+    margin-bottom: 1.5rem;
+  }
+
+  &__eyebrow {
+    display: inline-flex;
+    align-items: center;
+    margin-bottom: 0.75rem;
+    padding: 0.35rem 0.7rem;
+    border: 1px solid $color-primary-border;
+    border-radius: 999px;
+    background: $color-primary-soft;
+    color: $color-primary-strong;
+    font-size: 0.78rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
   }
 
   &__title {
-    font-size: 1.5rem;
-    font-weight: 600;
-    margin: 0 0 0.5rem;
+    font-size: clamp(1.75rem, 8vw, 2.55rem);
+    font-weight: 800;
+    line-height: 1.08;
+    letter-spacing: -0.04em;
+    margin: 0 0 0.75rem;
     color: $color-text;
   }
 
   &__subtitle {
     margin: 0;
     color: $color-muted;
-    font-size: 0.95rem;
-    line-height: 1.55;
+    font-size: 1rem;
+    line-height: 1.6;
+    max-width: 36rem;
   }
 
-  // Unified form controls inside the card
   .form-control,
   .form-select {
+    min-height: 48px;
     background-color: $color-surface;
     border: 1px solid $color-border;
     color: $color-text;
-    border-radius: 8px;
+    border-radius: $control-radius;
+    padding: 0.8rem 0.9rem;
+    font-size: 1rem;
+    font-weight: 600;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
 
     &::placeholder {
-      color: lighten($color-muted, 12%);
+      color: lighten($color-muted, 10%);
+      font-weight: 500;
     }
 
     &:focus {
       background-color: $color-surface;
       border-color: $color-primary;
       color: $color-text;
-      box-shadow: 0 0 0 3px rgba($color-primary, 0.15);
+      box-shadow: 0 0 0 4px rgba($color-primary, 0.14);
     }
   }
 
@@ -98,8 +141,9 @@ code {
   }
 
   .alert {
-    border-radius: 10px;
+    border-radius: $control-radius;
     border-width: 1px;
+    line-height: 1.5;
   }
 
   .alert-success {
@@ -126,8 +170,9 @@ code {
   background-color: $color-primary;
   border-color: $color-primary;
   padding: $primary-button-padding;
-  border-radius: 8px;
-  font-weight: 500;
+  border-radius: $control-radius;
+  font-weight: 700;
+  box-shadow: 0 12px 24px rgba($color-primary, 0.22);
 
   &:hover,
   &:focus,
@@ -140,6 +185,7 @@ code {
   &:disabled {
     background-color: lighten($color-primary, 18%);
     border-color: lighten($color-primary, 18%);
+    box-shadow: none;
   }
 }
 
@@ -147,8 +193,8 @@ code {
   color: $color-primary;
   border-color: $color-primary-border;
   background-color: $color-primary-soft;
-  border-radius: 8px;
-  font-weight: 500;
+  border-radius: $control-radius;
+  font-weight: 700;
 
   &:hover,
   &:focus,
@@ -183,22 +229,34 @@ input[type="number"] {
 }
 
 .form-section {
-  margin-bottom: 1.5rem;
-  padding-bottom: 1.25rem;
-  border-bottom: 1px solid $color-border;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  background: $color-section-bg;
+  border: 1px solid $color-border;
+  border-radius: $section-radius;
 
   &:last-of-type {
-    border-bottom: none;
+    margin-bottom: 0;
   }
 
   &__title {
     display: flex;
-    align-items: center;
-    gap: 0.65rem;
-    font-size: 1.05rem;
-    font-weight: 600;
+    align-items: flex-start;
+    gap: 0.75rem;
+    font-size: 1.08rem;
+    font-weight: 800;
+    line-height: 1.25;
     margin: 0 0 1rem;
     color: $color-text;
+
+    small {
+      display: block;
+      margin-top: 0.2rem;
+      color: $color-muted;
+      font-size: 0.86rem;
+      font-weight: 600;
+      line-height: 1.35;
+    }
   }
 
   &__number {
@@ -211,95 +269,157 @@ input[type="number"] {
     background-color: $color-primary;
     color: $color-white;
     font-size: 0.85rem;
-    font-weight: 600;
+    font-weight: 800;
     flex-shrink: 0;
+    box-shadow: 0 8px 18px rgba($color-primary, 0.18);
+  }
+
+  @include media-breakpoint-up(md) {
+    padding: 1.25rem;
   }
 }
 
 .portfolio-balancer-form {
-  padding-bottom: 0.5em;
+  display: grid;
+  gap: 1rem;
 
   .form-group {
-    text-align: center;
-    margin-bottom: 1rem;
+    text-align: left;
+    margin-bottom: 0;
   }
 
   .form-label {
-    font-weight: 500;
+    display: block;
+    margin-bottom: 0.45rem;
+    font-size: 0.95rem;
+    font-weight: 700;
     color: $color-text;
   }
 
   .ratio-summary {
-    font-size: 0.95rem;
-    color: $color-primary;
-    font-weight: 600;
-    margin: 0.25rem 0 0.75rem;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+    margin: 0.25rem 0 0.95rem;
+
+    span {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.65rem 0.8rem;
+      border: 1px solid $color-primary-border;
+      border-radius: $control-radius;
+      background: $color-primary-soft;
+      color: $color-primary-strong;
+      font-size: 0.95rem;
+      font-weight: 800;
+    }
+
+    @include media-breakpoint-up(sm) {
+      grid-template-columns: 1fr 1fr;
+    }
   }
 
   .ratio-helper,
   .portfolio-hint {
     display: block;
-    text-align: center;
+    text-align: left;
     margin-top: 0.35rem;
     color: $color-muted;
     font-size: 0.85rem;
+    line-height: 1.45;
   }
 
   .portfolio-hint {
-    margin-top: 0;
-    margin-bottom: 1rem;
+    margin: 0 0 1rem;
+    padding: 0.75rem 0.9rem;
+    border: 1px dashed $color-primary-border;
+    border-radius: $control-radius;
+    background: $color-primary-soft;
+    color: $color-primary-strong;
+    font-weight: 600;
   }
 
   #ratio {
-    max-width: 8rem;
-    margin: 0 auto;
+    max-width: 9rem;
     text-align: center;
-    font-weight: 500;
+    font-weight: 800;
   }
 
   .range-slider__container {
-    margin: 10px 0 16px;
-    padding: 0 4px;
+    margin: 0 0 1rem;
+    padding: 0.6rem 0.15rem 0;
 
     input[type="range"].range-slider {
       accent-color: $color-primary;
 
       &::-webkit-slider-runnable-track {
-        height: 6px;
+        height: 8px;
         background: $color-border;
-        border-radius: 3px;
+        border-radius: 999px;
       }
 
       &::-moz-range-track {
-        height: 6px;
+        height: 8px;
         background: $color-border;
-        border-radius: 3px;
+        border-radius: 999px;
       }
 
       &::-webkit-slider-thumb {
-        height: 20px;
-        width: 20px;
-        margin-top: -7px;
+        height: 26px;
+        width: 26px;
+        margin-top: -9px;
         border-radius: 50%;
         cursor: ew-resize;
         background: $color-primary;
         border: 2px solid $color-white;
-        box-shadow: 0 1px 4px rgba($color-text, 0.2);
+        box-shadow: 0 8px 20px rgba($color-primary, 0.28);
       }
 
       &::-moz-range-thumb {
-        height: 20px;
-        width: 20px;
+        height: 26px;
+        width: 26px;
         border-radius: 50%;
         cursor: ew-resize;
         background: $color-primary;
         border: 2px solid $color-white;
-        box-shadow: 0 1px 4px rgba($color-text, 0.2);
+        box-shadow: 0 8px 20px rgba($color-primary, 0.28);
       }
     }
   }
 
+  .portfolio-grid {
+    display: grid;
+    gap: 1rem;
+
+    @include media-breakpoint-up(md) {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      align-items: start;
+    }
+  }
+
+  .asset-group {
+    padding: 0.85rem;
+    border: 1px solid $color-border;
+    border-radius: $section-radius;
+    background: $color-surface;
+
+    &__header {
+      margin-bottom: 0.85rem;
+    }
+
+    &__hint {
+      display: block;
+      color: $color-muted;
+      font-size: 0.85rem;
+      font-weight: 600;
+      line-height: 1.4;
+    }
+  }
+
   .position-row {
+    display: grid;
+    grid-template-columns: 44px minmax(0, 1fr) 5rem;
+    gap: 0.5rem;
     align-items: center;
     margin-bottom: 0.5rem;
 
@@ -313,8 +433,7 @@ input[type="number"] {
     }
 
     &__currency {
-      max-width: 4.5rem;
-      min-width: 4.5rem;
+      min-width: 0;
     }
   }
 
@@ -323,9 +442,8 @@ input[type="number"] {
     min-height: 44px;
     line-height: 1;
     padding: 0;
-    margin-right: 4px;
     border: 1px solid $color-border;
-    border-radius: 8px;
+    border-radius: $control-radius;
     background-color: $color-gray;
     color: $color-muted;
 
@@ -337,16 +455,17 @@ input[type="number"] {
   }
 
   .contribution-row {
-    justify-content: center;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 5rem;
     align-items: center;
     gap: 0.5rem;
 
     &__amount {
-      max-width: 14rem;
+      min-width: 0;
     }
 
     &__currency {
-      max-width: 4.5rem;
+      min-width: 0;
     }
   }
 
@@ -356,13 +475,8 @@ input[type="number"] {
   }
 
   .btn-calculate {
-    min-width: 12rem;
-    min-height: 44px;
-    margin-top: 0.5rem;
-
-    @include media-breakpoint-down(md) {
-      width: 100%;
-    }
+    width: 100%;
+    min-height: 52px;
   }
 
   .currency-warning {
@@ -371,81 +485,87 @@ input[type="number"] {
     margin-bottom: 1rem;
   }
 
-  @include media-breakpoint-between(md, xl) {
-    .stocks-group,
-    .bonds-group {
-      .form-label {
-        min-height: 4.5rem;
+  .form-actions {
+    display: grid;
+    gap: 0.75rem;
+    padding: 0 0.25rem;
+    text-align: center;
+
+    &__hint {
+      margin: 0;
+      color: $color-muted;
+      font-size: 0.86rem;
+      line-height: 1.45;
+    }
+
+    @include media-breakpoint-up(sm) {
+      justify-items: center;
+
+      .btn-calculate {
+        width: auto;
+        min-width: 14rem;
       }
-    }
-  }
-
-  @include media-breakpoint-down(md) {
-    .position-row__amount,
-    .contribution-row__amount {
-      max-width: none;
-      flex: 1 1 auto;
-    }
-
-    .form-group .form-control {
-      max-width: none;
-      width: 100%;
     }
   }
 }
 
 .calculator-result {
   min-height: 1rem;
-  margin-top: 1.25rem;
-  padding-top: 1.25rem;
-  border-top: 1px solid $color-border;
+  margin-top: 1rem;
 }
 
 .result-alert {
   text-align: left;
-  margin-bottom: 0.75rem;
+  margin-bottom: 0.9rem;
+  font-weight: 700;
 }
 
 .result-metrics {
   display: grid;
-  grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
 
-  @include media-breakpoint-down(sm) {
-    grid-template-columns: 1fr;
+  @include media-breakpoint-up(sm) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
 .result-metric {
-  background: $color-primary-soft;
-  border-radius: 10px;
+  background: linear-gradient(180deg, $color-primary-soft 0%, $color-surface 100%);
+  border-radius: $section-radius;
   padding: 1rem;
-  text-align: center;
+  text-align: left;
   border: 1px solid $color-primary-border;
 
   &__label {
     display: block;
     font-size: 0.85rem;
-    color: $color-muted;
+    color: $color-muted-strong;
     margin-bottom: 0.35rem;
-    font-weight: 500;
+    font-weight: 700;
   }
 
   &__value {
     display: block;
-    font-size: 1.25rem;
-    font-weight: 600;
-    color: $color-primary;
+    font-size: clamp(1.25rem, 6vw, 1.65rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: $color-primary-strong;
   }
 }
 
 .not-found-page {
   text-align: center;
-  padding: 3rem 1rem;
+  min-height: 100vh;
+  display: grid;
+  place-content: center;
+  padding: $page-padding-mobile;
   color: $color-text;
 
   h1 {
     color: $color-text;
+    font-size: clamp(1.75rem, 8vw, 2.5rem);
+    font-weight: 800;
+    letter-spacing: -0.04em;
   }
 
   a {
