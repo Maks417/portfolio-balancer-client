@@ -82,6 +82,7 @@ code {
   }
 
   &__title {
+    font-family: $font-family-heading;
     font-size: clamp(1.75rem, 8vw, 2.55rem);
     font-weight: 800;
     line-height: 1.08;
@@ -243,6 +244,7 @@ input[type="number"] {
     display: flex;
     align-items: flex-start;
     gap: 0.75rem;
+    font-family: $font-family-heading;
     font-size: 1.08rem;
     font-weight: 800;
     line-height: 1.25;
@@ -252,6 +254,7 @@ input[type="number"] {
     small {
       display: block;
       margin-top: 0.2rem;
+      font-family: $font-family-base;
       color: $color-muted;
       font-size: 0.86rem;
       font-weight: 600;
@@ -296,26 +299,39 @@ input[type="number"] {
     color: $color-text;
   }
 
-  .ratio-summary {
+  .ratio-tiles {
     display: grid;
-    grid-template-columns: 1fr;
-    gap: 0.5rem;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.625rem;
     margin: 0.25rem 0 0.95rem;
+  }
 
-    span {
-      display: flex;
-      justify-content: space-between;
-      padding: 0.65rem 0.8rem;
-      border: 1px solid $color-primary-border;
-      border-radius: $control-radius;
-      background: $color-primary-soft;
-      color: $color-primary-strong;
-      font-size: 0.95rem;
-      font-weight: 800;
+  .ratio-tile {
+    padding: 0.75rem 0.9rem;
+    border-radius: $control-radius;
+    border: 1px solid transparent;
+
+    &__label {
+      display: block;
+      font-size: 0.78rem;
+      font-weight: 600;
     }
 
-    @include media-breakpoint-up(sm) {
-      grid-template-columns: 1fr 1fr;
+    &__value {
+      display: block;
+      margin-top: 0.15rem;
+      font-family: $font-family-heading;
+      font-size: 1.3rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    &--stock {
+      @include accent-surface($color-stock-light, $color-stock-border, $color-stock-dark);
+    }
+
+    &--bond {
+      @include accent-surface($color-bond-light, $color-bond-border, $color-bond-dark);
     }
   }
 
@@ -387,32 +403,53 @@ input[type="number"] {
     }
   }
 
-  .portfolio-grid {
-    display: grid;
-    gap: 1rem;
-
-    @include media-breakpoint-up(md) {
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      align-items: start;
-    }
+  .portfolio-classes {
+    display: block;
   }
 
-  .asset-group {
-    padding: 0.85rem;
-    border: 1px solid $color-border;
-    border-radius: $section-radius;
-    background: $color-surface;
+  .asset-divider {
+    height: 1px;
+    background: $color-border;
+    margin: 1.25rem 0;
+  }
 
+  .asset-class {
     &__header {
-      margin-bottom: 0.85rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.75rem;
+    }
+
+    &__label {
+      margin-bottom: 0;
+      font-family: $font-family-heading;
+      font-size: 0.95rem;
+      font-weight: 700;
+    }
+
+    &__total {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: $color-muted;
+      font-variant-numeric: tabular-nums;
     }
 
     &__hint {
       display: block;
+      margin: 0.15rem 0 0.75rem;
       color: $color-muted;
-      font-size: 0.85rem;
-      font-weight: 600;
+      font-size: 0.82rem;
+      font-weight: 500;
       line-height: 1.4;
+    }
+
+    &--stock .asset-class__label {
+      color: $color-stock-dark;
+    }
+
+    &--bond .asset-class__label {
+      color: $color-bond-dark;
     }
   }
 
@@ -472,6 +509,34 @@ input[type="number"] {
   .btn-add-position {
     margin-top: 0.5rem;
     min-height: 44px;
+    border-style: dashed;
+    border-width: 1px;
+    border-radius: $control-radius;
+    font-weight: 600;
+
+    &--stock {
+      @include accent-surface($color-stock-light, $color-stock-border, $color-stock-dark);
+
+      &:hover,
+      &:focus,
+      &:active {
+        background: rgba($color-stock, 0.14) !important;
+        border-color: $color-stock !important;
+        color: $color-stock-dark !important;
+      }
+    }
+
+    &--bond {
+      @include accent-surface($color-bond-light, $color-bond-border, $color-bond-dark);
+
+      &:hover,
+      &:focus,
+      &:active {
+        background: rgba($color-bond, 0.14) !important;
+        border-color: $color-bond !important;
+        color: $color-bond-dark !important;
+      }
+    }
   }
 
   .btn-calculate {
@@ -509,6 +574,47 @@ input[type="number"] {
   }
 }
 
+.distribution {
+  margin-top: 0.75rem;
+  padding: 1rem 1.1rem;
+  background: $color-section-bg;
+  border: 1px solid $color-border;
+  border-radius: $section-radius;
+
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.6rem;
+  }
+
+  &__title {
+    font-family: $font-family-heading;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: $color-text;
+  }
+
+  &__drift {
+    font-size: 0.8rem;
+    color: $color-muted;
+    font-variant-numeric: tabular-nums;
+  }
+
+  &__bar {
+    @include stacked-bar(10px);
+  }
+
+  &__legend {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    color: $color-muted;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
 .calculator-result {
   min-height: 1rem;
   margin-top: 1rem;
@@ -520,37 +626,143 @@ input[type="number"] {
   font-weight: 700;
 }
 
-.result-metrics {
-  display: grid;
-  gap: 0.75rem;
+.result-card {
+  padding: 1.25rem;
+  background: $color-section-bg;
+  border: 1px solid $color-border;
+  border-radius: $card-radius - 8px;
+  box-shadow: $card-shadow;
 
-  @include media-breakpoint-up(sm) {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+
+  &__title {
+    font-family: $font-family-heading;
+    font-size: 1.1rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin: 0;
+    color: $color-text;
+  }
+
+  &__edit {
+    padding: 0;
+    border: none;
+    background: none;
+    color: $color-muted;
+    font-size: 0.85rem;
+    text-decoration: underline;
+
+    &:hover,
+    &:focus,
+    &:active {
+      background: none !important;
+      color: $color-text !important;
+    }
   }
 }
 
+.result-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.625rem;
+}
+
 .result-metric {
-  background: linear-gradient(180deg, $color-primary-soft 0%, $color-surface 100%);
-  border-radius: $section-radius;
-  padding: 1rem;
+  border-radius: $control-radius;
+  padding: 0.9rem 1rem;
   text-align: left;
-  border: 1px solid $color-primary-border;
 
   &__label {
     display: block;
-    font-size: 0.85rem;
-    color: $color-muted-strong;
-    margin-bottom: 0.35rem;
-    font-weight: 700;
+    font-size: 0.78rem;
+    margin-bottom: 0.25rem;
+    font-weight: 600;
   }
 
   &__value {
     display: block;
-    font-size: clamp(1.25rem, 6vw, 1.65rem);
+    font-family: $font-family-heading;
+    font-size: clamp(1.15rem, 5vw, 1.4rem);
     font-weight: 800;
     letter-spacing: -0.03em;
-    color: $color-primary-strong;
   }
+
+  &--stock {
+    background: $color-stock-light;
+
+    .result-metric__label,
+    .result-metric__value {
+      color: $color-stock-dark;
+    }
+  }
+
+  &--bond {
+    background: $color-bond-light;
+
+    .result-metric__label,
+    .result-metric__value {
+      color: $color-bond-dark;
+    }
+  }
+}
+
+.result-share-bar {
+  @include stacked-bar(8px);
+  margin-top: 0.85rem;
+}
+
+.result-breakdown {
+  margin-top: 1.1rem;
+
+  &__title {
+    font-family: $font-family-heading;
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin: 0 0 0.5rem;
+
+    &--stock {
+      color: $color-stock-dark;
+    }
+
+    &--bond {
+      color: $color-bond-dark;
+    }
+  }
+
+  &__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 0.45rem 0;
+    font-size: 0.88rem;
+    color: $color-text;
+    border-bottom: 1px solid $color-border;
+  }
+
+  &__amount {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+
+    &--stock {
+      color: $color-stock-dark;
+    }
+
+    &--bond {
+      color: $color-bond-dark;
+    }
+  }
+}
+
+.result-disclaimer {
+  margin: 1rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: $color-muted;
 }
 
 .not-found-page {

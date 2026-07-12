@@ -13,7 +13,10 @@ import RangeSlider from 'react-bootstrap-range-slider';
 import axios from 'axios';
 import {
   currencyOptions,
+  distributeBuys,
   formatAmount,
+  FX_DISCLAIMER,
+  getCurrentAllocation,
   getRatioParts,
   hasFilledPosition,
   hasMixedCurrencies,
@@ -50,6 +53,21 @@ const BalanceForm = () => {
     assets.bondsValues,
     contributionAmount.currency,
   );
+
+  const allocation = getCurrentAllocation(
+    assets.stocksValues,
+    assets.bondsValues,
+  );
+  const drift = allocation.driftFrom(ratioParts.stocks);
+
+  const isSuccess = result?.type === 'success';
+  const resultTotal = isSuccess
+    ? (result.stocksAmount ?? 0) + (result.bondsAmount ?? 0)
+    : 0;
+  const resultStockSharePct =
+    resultTotal > 0
+      ? Math.round(((result.stocksAmount ?? 0) / resultTotal) * 100)
+      : 0;
 
   const contributionNumber = Number(contributionAmount.value);
   const isFormValid =
@@ -157,7 +175,6 @@ const BalanceForm = () => {
       return;
     }
 
-    const contributionNumber = Number(contributionAmount.value);
     setSubmitDisabled(true);
 
     const data = {
@@ -184,6 +201,16 @@ const BalanceForm = () => {
           currency,
           stocksAmount,
           bondsAmount,
+          stocksBreakdown: distributeBuys(
+            assets.stocksValues,
+            stocksAmount,
+            currency,
+          ),
+          bondsBreakdown: distributeBuys(
+            assets.bondsValues,
+            bondsAmount,
+            currency,
+          ),
         });
         scrollToResult();
       })
@@ -207,19 +234,46 @@ const BalanceForm = () => {
       });
   };
 
-  const renderPositionRows = (name, labelId, valuesArr, fieldErrorKey) => {
+  const fieldError = (key) => clientErrors[key] || fieldErrors[key];
+
+  const renderCurrencySelect = ({ className, name, value, ariaLabel, onChange }) => (
+    <Input
+      className={className}
+      type="select"
+      name={name}
+      value={value}
+      aria-label={ariaLabel}
+      onChange={onChange}
+    >
+      {currencyOptions.map((item) => (
+        <option key={item.value} value={item.value}>
+          {item.text}
+        </option>
+      ))}
+    </Input>
+  );
+
+  const renderAssetClass = (name, labelId, valuesArr, fieldErrorKey, totalBase) => {
     const isStocks = name === 'stocksValues';
     const label = isStocks ? 'Акции' : 'Облигации';
     const description = isStocks
       ? 'Стоимость каждой позиции в акциях'
       : 'Стоимость каждой позиции в облигациях';
+    const modifier = isStocks ? 'stock' : 'bond';
 
     return (
-      <FormGroup className={`form-group asset-group ${isStocks ? 'stocks-group' : 'bonds-group'}`}>
-        <div className="asset-group__header">
-          <Label for={labelId}>{label}</Label>
-          <span className="asset-group__hint">{description}</span>
+      <FormGroup className={`form-group asset-class asset-class--${modifier}`}>
+        <div className="asset-class__header">
+          <Label for={labelId} className="asset-class__label">
+            {label}
+          </Label>
+          {totalBase > 0 && (
+            <span className="asset-class__total">
+              {formatAmount(totalBase, 'rub')}
+            </span>
+          )}
         </div>
+        <span className="asset-class__hint">{description}</span>
         {valuesArr.map((element, index) => (
           <div className="position-row" key={`${name}-${index}`}>
             {index > 0 ? (
@@ -243,43 +297,51 @@ const BalanceForm = () => {
               id={index === 0 ? labelId : undefined}
               value={element.value}
               placeholder={`Позиция ${index + 1}`}
-              invalid={Boolean(clientErrors[fieldErrorKey] || fieldErrors[fieldErrorKey])}
+              invalid={Boolean(fieldError(fieldErrorKey))}
               onChange={(e) => handleValues(index, e, name, valuesArr)}
             />
-            <Input
-              className="position-row__currency number-field"
-              type="select"
-              name={`${name}_currency_${index}`}
-              value={element.currency}
-              aria-label={`Валюта позиции ${index + 1}`}
-              onChange={(e) => handleValues(index, e, name, valuesArr)}
-            >
-              {currencyOptions.map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.text}
-                </option>
-              ))}
-            </Input>
+            {renderCurrencySelect({
+              className: 'position-row__currency number-field',
+              name: `${name}_currency_${index}`,
+              value: element.currency,
+              ariaLabel: `Валюта позиции ${index + 1}`,
+              onChange: (e) => handleValues(index, e, name, valuesArr),
+            })}
           </div>
         ))}
         <Button
           type="button"
-          color="secondary"
-          outline
-          className="btn-add-position w-100"
+          className={`btn-add-position btn-add-position--${modifier} w-100`}
           onClick={(e) => addValueField(e, name, valuesArr)}
         >
           <i className="fa fa-plus me-2" aria-hidden="true" />
           Добавить позицию
         </Button>
-        {(clientErrors[fieldErrorKey] || fieldErrors[fieldErrorKey]) && (
+        {fieldError(fieldErrorKey) && (
           <FormFeedback className="d-block">
-            {clientErrors[fieldErrorKey] || fieldErrors[fieldErrorKey]}
+            {fieldError(fieldErrorKey)}
           </FormFeedback>
         )}
       </FormGroup>
     );
   };
+
+  const renderBreakdown = (title, modifier, rows) =>
+    rows?.length > 0 ? (
+      <div className="result-breakdown">
+        <h4 className={`result-breakdown__title result-breakdown__title--${modifier}`}>
+          {title}
+        </h4>
+        {rows.map((row, index) => (
+          <div className="result-breakdown__row" key={`${modifier}-buy-${index}`}>
+            <span>Позиция {index + 1}</span>
+            <span className={`result-breakdown__amount result-breakdown__amount--${modifier}`}>
+              +{formatAmount(row.amount, row.currency)}
+            </span>
+          </div>
+        ))}
+      </div>
+    ) : null;
 
   return (
     <div className="calculator-card">
@@ -303,10 +365,16 @@ const BalanceForm = () => {
           </h2>
           <FormGroup className="form-group">
             <Label for="ratio">Пропорция портфеля (акции/облигации, %)</Label>
-            <p className="ratio-summary" aria-live="polite">
-              <span>Акции {ratioParts.stocks}%</span>
-              <span>Облигации {ratioParts.bonds}%</span>
-            </p>
+            <div className="ratio-tiles" aria-live="polite">
+              <div className="ratio-tile ratio-tile--stock">
+                <span className="ratio-tile__label">Акции</span>
+                <span className="ratio-tile__value">{ratioParts.stocks}%</span>
+              </div>
+              <div className="ratio-tile ratio-tile--bond">
+                <span className="ratio-tile__label">Облигации</span>
+                <span className="ratio-tile__value">{ratioParts.bonds}%</span>
+              </div>
+            </div>
             <div className="range-slider__container">
               <RangeSlider
                 value={ratio.value}
@@ -325,7 +393,7 @@ const BalanceForm = () => {
               id="ratio"
               value={ratio.text}
               placeholder="70/30"
-              invalid={Boolean(clientErrors.ratio || fieldErrors.ratio)}
+              invalid={Boolean(fieldError('ratio'))}
               onChange={validateRatio}
             />
             <FormText className="ratio-helper">
@@ -336,13 +404,40 @@ const BalanceForm = () => {
               Значение пропорции должно быть целое (100) или дробное (например,
               50/50)
             </FormFeedback>
-            {(clientErrors.ratio || fieldErrors.ratio) && (
+            {fieldError('ratio') && (
               <FormFeedback className="d-block">
-                {clientErrors.ratio || fieldErrors.ratio}
+                {fieldError('ratio')}
               </FormFeedback>
             )}
           </FormGroup>
         </section>
+
+        {allocation.hasPositions && (
+          <div className="distribution" aria-live="polite">
+            <div className="distribution__header">
+              <span className="distribution__title">Текущее распределение</span>
+              <span className="distribution__drift">Отклонение {drift}%</span>
+            </div>
+            <div
+              className="distribution__bar"
+              role="img"
+              aria-label={`Акции ${allocation.currentStockPct}%, облигации ${allocation.currentBondPct}%`}
+            >
+              <span
+                className="distribution__segment distribution__segment--stock"
+                style={{ width: `${allocation.currentStockPct}%` }}
+              />
+              <span className="distribution__segment distribution__segment--bond" />
+            </div>
+            <div className="distribution__legend">
+              <span>Акции {allocation.currentStockPct}%</span>
+              <span>
+                Цель {ratioParts.stocks}/{ratioParts.bonds}
+              </span>
+              <span>Облигации {allocation.currentBondPct}%</span>
+            </div>
+          </div>
+        )}
 
         <section className="form-section" aria-labelledby="section-portfolio">
           <h2 className="form-section__title" id="section-portfolio">
@@ -365,9 +460,10 @@ const BalanceForm = () => {
                 Укажите хотя бы одну позицию в акциях или облигациях.
               </FormText>
             )}
-          <div className="portfolio-grid">
-            {renderPositionRows('stocksValues', 'stockValue', assets.stocksValues, 'stocks')}
-            {renderPositionRows('bondsValues', 'bondValue', assets.bondsValues, 'bonds')}
+          <div className="portfolio-classes">
+            {renderAssetClass('stocksValues', 'stockValue', assets.stocksValues, 'stocks', allocation.stockTotalBase)}
+            <div className="asset-divider" aria-hidden="true" />
+            {renderAssetClass('bondsValues', 'bondValue', assets.bondsValues, 'bonds', allocation.bondTotalBase)}
           </div>
         </section>
 
@@ -392,27 +488,20 @@ const BalanceForm = () => {
                 id="contributionAmount"
                 value={contributionAmount.value}
                 placeholder="50 000"
-                invalid={Boolean(clientErrors.contribution || fieldErrors.contribution)}
+                invalid={Boolean(fieldError('contribution'))}
                 onChange={changeContribution}
               />
-              <Input
-                className="contribution-row__currency number-field"
-                type="select"
-                name="contributionAmount_currency"
-                value={contributionAmount.currency}
-                aria-label="Валюта взноса"
-                onChange={changeContribution}
-              >
-                {currencyOptions.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.text}
-                  </option>
-                ))}
-              </Input>
+              {renderCurrencySelect({
+                className: 'contribution-row__currency number-field',
+                name: 'contributionAmount_currency',
+                value: contributionAmount.currency,
+                ariaLabel: 'Валюта взноса',
+                onChange: changeContribution,
+              })}
             </div>
-            {(clientErrors.contribution || fieldErrors.contribution) && (
+            {fieldError('contribution') && (
               <FormFeedback className="d-block">
-                {clientErrors.contribution || fieldErrors.contribution}
+                {fieldError('contribution')}
               </FormFeedback>
             )}
           </FormGroup>
@@ -453,23 +542,30 @@ const BalanceForm = () => {
           Результат
         </h2>
 
-        {result?.type === 'success' && (
-          <div className="result-success" role="status" aria-live="polite">
-            <Alert color="success" className="result-alert">
-              <i className="fa fa-circle-check me-2" aria-hidden="true" />
-              <strong>Рекомендация по взносу</strong>
-            </Alert>
+        {isSuccess && (
+          <div className="result-card" role="status" aria-live="polite">
+            <div className="result-card__header">
+              <h3 className="result-card__title">Результат расчёта</h3>
+              <Button
+                type="button"
+                className="result-card__edit"
+                onClick={() => setResult(null)}
+              >
+                Изменить
+              </Button>
+            </div>
+
             <div className="result-metrics">
-              <div className="result-metric">
-                <span className="result-metric__label">Акции</span>
+              <div className="result-metric result-metric--stock">
+                <span className="result-metric__label">Докупить акции</span>
                 <span className="result-metric__value">
                   {result.stocksAmount != null
                     ? formatAmount(result.stocksAmount, result.currency)
                     : '—'}
                 </span>
               </div>
-              <div className="result-metric">
-                <span className="result-metric__label">Облигации</span>
+              <div className="result-metric result-metric--bond">
+                <span className="result-metric__label">Докупить облигации</span>
                 <span className="result-metric__value">
                   {result.bondsAmount != null
                     ? formatAmount(result.bondsAmount, result.currency)
@@ -477,6 +573,25 @@ const BalanceForm = () => {
                 </span>
               </div>
             </div>
+
+            {resultTotal > 0 && (
+              <div
+                className="result-share-bar"
+                role="img"
+                aria-label={`Акции ${resultStockSharePct}% взноса`}
+              >
+                <span
+                  className="result-share-bar__segment result-share-bar__segment--stock"
+                  style={{ width: `${resultStockSharePct}%` }}
+                />
+                <span className="result-share-bar__segment result-share-bar__segment--bond" />
+              </div>
+            )}
+
+            {renderBreakdown('Акции', 'stock', result.stocksBreakdown)}
+            {renderBreakdown('Облигации', 'bond', result.bondsBreakdown)}
+
+            <p className="result-disclaimer">{FX_DISCLAIMER}</p>
           </div>
         )}
 

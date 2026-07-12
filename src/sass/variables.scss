@@ -6,6 +6,19 @@ $color-primary-border: #bfdbfe;
 $color-primary-strong: #1e3a8a;
 $color-border-primary: $color-primary;
 
+// Two-accent scheme: stocks = blue, bonds = green.
+// Light/border/text variants mirror the design mock (soft tint bg, subtle
+// border, and a ~32%-darkened tone for accent text).
+$color-stock: #2e6fed;
+$color-stock-light: rgba($color-stock, 0.08);
+$color-stock-border: rgba($color-stock, 0.18);
+$color-stock-dark: mix(#000, $color-stock, 32%);
+
+$color-bond: #16a34a;
+$color-bond-light: rgba($color-bond, 0.08);
+$color-bond-border: rgba($color-bond, 0.18);
+$color-bond-dark: mix(#000, $color-bond, 32%);
+
 // Surfaces & text
 $color-page-bg: #f3f7fb;
 $color-page-bg-deep: #e8f0f8;
@@ -37,7 +50,8 @@ $color-blue: $color-primary;
 $color-border-blue: $color-border-primary;
 
 // Typography
-$font-family-base: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+$font-family-base: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+$font-family-heading: Manrope, "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 $font-size-body: 1rem;
 $line-height-body: 1.55;
 
@@ -47,10 +61,42 @@ $page-padding-mobile: 16px;
 $page-padding-desktop: 32px;
 $primary-button-padding: 0.85rem 1.25rem;
 $form-field-margin: 5px;
-$card-max-width: 760px;
+$card-max-width: 560px;
 $card-radius: 28px;
 $section-radius: 20px;
 $control-radius: 14px;
 $card-shadow: 0 24px 70px rgba(15, 23, 42, 0.12);
 $card-padding-mobile: 20px;
 $card-padding-desktop: 36px;
+
+// Shared accent helpers to avoid repeating the stock/bond variant pairs.
+@mixin accent-surface($light, $border, $dark) {
+  background: $light;
+  border-color: $border;
+  color: $dark;
+}
+
+// Stacked stock/bond proportion bar: two segments (stock first, sized inline;
+// bond second, fills the rest). Targets the segments positionally so it fits
+// both the distribution bar and the results share bar regardless of BEM naming.
+@mixin stacked-bar($height) {
+  display: flex;
+  height: $height;
+  border-radius: 999px;
+  overflow: hidden;
+  background: $color-gray;
+
+  > span {
+    display: block;
+    height: 100%;
+
+    &:first-child {
+      background: $color-stock;
+    }
+
+    &:last-child {
+      flex: 1;
+      background: $color-bond;
+    }
+  }
+}

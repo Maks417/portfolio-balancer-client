@@ -4,6 +4,14 @@ export const currencyOptions = [
   { value: 'eur', text: '€', locale: 'de-DE' },
 ];
 
+// Approximate FX rates (base = RUB) used ONLY for the live preview affordances
+// (current-distribution bar, per-class totals, per-position breakdown). The
+// authoritative amounts always come from the backend; see FX_DISCLAIMER.
+export const FX_RATES = { rub: 1, usd: 90, eur: 100 };
+
+export const FX_DISCLAIMER =
+  'Курсы валют ориентировочные (1$ ≈ 90 ₽, 1€ ≈ 100 ₽) и используются только для расчёта пропорций.';
+
 const FIELD_LABELS = {
   ratio: 'Пропорция портфеля',
   stockValues: 'Позиции в акциях',
@@ -122,7 +130,82 @@ export function formatAmount(amount, currencyCode) {
 }
 
 export function hasFilledPosition(rows) {
-  return rows.some((row) => String(row.value).trim() !== '' && Number(row.value) > 0);
+  return rows.some((row) => parsePositiveNumber(row.value) > 0);
+}
+
+// Parse a user-entered amount, tolerating comma decimals and blanks; returns 0
+// for anything non-positive so it can be summed safely.
+export function parsePositiveNumber(value) {
+  const n = parseFloat(String(value ?? '').replace(',', '.'));
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}
+
+export function toBase(value, currency) {
+  return parsePositiveNumber(value) * (FX_RATES[currency] ?? 1);
+}
+
+export function fromBase(baseValue, currency) {
+  return baseValue / (FX_RATES[currency] ?? 1);
+}
+
+export function sumPositionsInBase(rows) {
+  return rows.reduce((total, row) => total + toBase(row.value, row.currency), 0);
+}
+
+// Current stock/bond split of the entered portfolio, in a common base currency,
+// plus a helper to compute drift from a target stock percentage.
+export function getCurrentAllocation(stocksValues, bondsValues) {
+  const stockTotalBase = sumPositionsInBase(stocksValues);
+  const bondTotalBase = sumPositionsInBase(bondsValues);
+  const grandTotal = stockTotalBase + bondTotalBase;
+  const hasPositions = grandTotal > 0;
+  const currentStockPct = hasPositions
+    ? Math.round((stockTotalBase / grandTotal) * 100)
+    : 0;
+  const currentBondPct = hasPositions ? 100 - currentStockPct : 0;
+
+  return {
+    stockTotalBase,
+    bondTotalBase,
+    hasPositions,
+    currentStockPct,
+    currentBondPct,
+    driftFrom(targetStockPct) {
+      return hasPositions ? Math.abs(currentStockPct - targetStockPct) : 0;
+    },
+  };
+}
+
+// Water-fill an equalizing distribution of `budget` across positions holding
+// `values` (all in the same base currency): fill the lowest positions first so
+// they converge toward a common level, then spread any leftover evenly.
+export function waterfillEqual(values, budget) {
+  const n = values.length;
+  if (n === 0 || budget <= 0) {
+    return values.map(() => 0);
+  }
+  const sum = values.reduce((a, b) => a + b, 0);
+  const target = (sum + budget) / n;
+  const need = values.map((v) => Math.max(0, target - v));
+  const needSum = need.reduce((a, b) => a + b, 0);
+  const leftover = budget - needSum;
+  return need.map((v) => v + leftover / n);
+}
+
+// Split an aggregate buy amount (as returned by the backend, in `budgetCurrency`)
+// across the given positions, returning the per-position amount converted back to
+// each position's own currency. Approximate — for display only.
+export function distributeBuys(rows, budgetAmount, budgetCurrency) {
+  if (!Array.isArray(rows) || rows.length === 0 || !(budgetAmount > 0)) {
+    return [];
+  }
+  const budgetBase = toBase(budgetAmount, budgetCurrency);
+  const baseValues = rows.map((row) => toBase(row.value, row.currency));
+  const baseBuys = waterfillEqual(baseValues, budgetBase);
+  return rows.map((row, i) => ({
+    currency: row.currency,
+    amount: fromBase(baseBuys[i], row.currency),
+  }));
 }
 
 export function hasMixedCurrencies(stocksValues, bondsValues, contributionCurrency) {
