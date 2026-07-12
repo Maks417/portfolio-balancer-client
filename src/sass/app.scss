@@ -613,6 +613,13 @@ input[type="number"] {
     color: $color-muted;
     font-variant-numeric: tabular-nums;
   }
+
+  &__note {
+    margin: 0.75rem 0 0;
+    font-size: 0.8rem;
+    color: $color-muted;
+    line-height: 1.45;
+  }
 }
 
 .calculator-result {

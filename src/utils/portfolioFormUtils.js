@@ -4,13 +4,52 @@ export const currencyOptions = [
   { value: 'eur', text: '€', locale: 'de-DE' },
 ];
 
-// Approximate FX rates (base = RUB) used ONLY for the live preview affordances
-// (current-distribution bar, per-class totals, per-position breakdown). The
-// authoritative amounts always come from the backend; see FX_DISCLAIMER.
-export const FX_RATES = { rub: 1, usd: 90, eur: 100 };
+export const DEFAULT_FX_RATES = { rub: 1, usd: 90, eur: 100 };
 
-export const FX_DISCLAIMER =
-  'Курсы валют ориентировочные (1$ ≈ 90 ₽, 1€ ≈ 100 ₽) и используются только для расчёта пропорций.';
+let activeFxRates = { ...DEFAULT_FX_RATES };
+let activeFxMeta = null;
+
+export const BREAKDOWN_ESTIMATE_NOTE =
+  'Распределение по позициям рассчитано на сервере по текущим курсам.';
+
+export function setFxRates(ratesPerUnitInRub, metadata = null) {
+  if (!ratesPerUnitInRub) {
+    activeFxRates = { ...DEFAULT_FX_RATES };
+    activeFxMeta = null;
+    return;
+  }
+
+  activeFxRates = {
+    rub: 1,
+    usd: ratesPerUnitInRub.usd ?? DEFAULT_FX_RATES.usd,
+    eur: ratesPerUnitInRub.eur ?? DEFAULT_FX_RATES.eur,
+  };
+  activeFxMeta = metadata;
+}
+
+export function getFxRates() {
+  return { ...activeFxRates };
+}
+
+export function getFxMeta() {
+  return activeFxMeta;
+}
+
+export function formatFxDisclaimer(fxMeta = activeFxMeta) {
+  if (!fxMeta) {
+    return 'Курсы валют ориентировочные и используются для предпросмотра до загрузки актуальных данных.';
+  }
+
+  const asOf = fxMeta.ratesAsOf
+    ? new Date(fxMeta.ratesAsOf).toLocaleDateString('ru-RU')
+    : 'неизвестно';
+  const staleSuffix = fxMeta.stale ? ' (устаревшие)' : '';
+  const cacheSuffix = fxMeta.fromCache ? ', из кэша' : '';
+  const usd = fxMeta.ratesPerUnitInRub?.usd ?? activeFxRates.usd;
+  const eur = fxMeta.ratesPerUnitInRub?.eur ?? activeFxRates.eur;
+
+  return `Курсы ${fxMeta.source} на ${asOf}${cacheSuffix}${staleSuffix}: 1$ ≈ ${formatAmount(usd, 'rub')}, 1€ ≈ ${formatAmount(eur, 'rub')}.`;
+}
 
 const FIELD_LABELS = {
   ratio: 'Пропорция портфеля',
@@ -19,6 +58,7 @@ const FIELD_LABELS = {
   bondValues: 'Позиции в облигациях',
   bondsValues: 'Позиции в облигациях',
   contributionAmount: 'Сумма взноса',
+  mode: 'Режим расчёта',
 };
 
 const FIELD_KEYS = {
@@ -28,7 +68,33 @@ const FIELD_KEYS = {
   bondValues: 'bonds',
   bondsValues: 'bonds',
   contributionAmount: 'contribution',
+  mode: 'mode',
 };
+
+function mapFieldKey(field) {
+  if (FIELD_KEYS[field]) {
+    return FIELD_KEYS[field];
+  }
+
+  const normalized = field.toLowerCase();
+  if (normalized.startsWith('contributionamount')) {
+    return 'contribution';
+  }
+  if (normalized.startsWith('stockvalues')) {
+    return 'stocks';
+  }
+  if (normalized.startsWith('bondvalues')) {
+    return 'bonds';
+  }
+  if (normalized.startsWith('ratio')) {
+    return 'ratio';
+  }
+  if (normalized.startsWith('mode')) {
+    return 'mode';
+  }
+
+  return null;
+}
 
 export function getCurrencySign(currencyCode) {
   return currencyOptions.find((c) => c.value === currencyCode)?.text ?? '';
@@ -124,39 +190,40 @@ export function formatAmount(amount, currencyCode) {
   const formatted = new Intl.NumberFormat(locale, {
     maximumFractionDigits: 2,
     minimumFractionDigits: 0,
-  }).format(amount);
+  }).format(Math.abs(amount));
   const sign = getCurrencySign(currencyCode);
   return `${sign}${formatted}`;
+}
+
+export function formatSignedAmount(amount, currencyCode, isSell = false) {
+  const prefix = amount < 0 || isSell ? '−' : '+';
+  return `${prefix}${formatAmount(Math.abs(amount), currencyCode)}`;
 }
 
 export function hasFilledPosition(rows) {
   return rows.some((row) => parsePositiveNumber(row.value) > 0);
 }
 
-// Parse a user-entered amount, tolerating comma decimals and blanks; returns 0
-// for anything non-positive so it can be summed safely.
 export function parsePositiveNumber(value) {
   const n = parseFloat(String(value ?? '').replace(',', '.'));
   return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
-export function toBase(value, currency) {
-  return parsePositiveNumber(value) * (FX_RATES[currency] ?? 1);
+export function toBase(value, currency, rates = activeFxRates) {
+  return parsePositiveNumber(value) * (rates[currency] ?? 1);
 }
 
-export function fromBase(baseValue, currency) {
-  return baseValue / (FX_RATES[currency] ?? 1);
+export function fromBase(baseValue, currency, rates = activeFxRates) {
+  return baseValue / (rates[currency] ?? 1);
 }
 
-export function sumPositionsInBase(rows) {
-  return rows.reduce((total, row) => total + toBase(row.value, row.currency), 0);
+export function sumPositionsInBase(rows, rates = activeFxRates) {
+  return rows.reduce((total, row) => total + toBase(row.value, row.currency, rates), 0);
 }
 
-// Current stock/bond split of the entered portfolio, in a common base currency,
-// plus a helper to compute drift from a target stock percentage.
-export function getCurrentAllocation(stocksValues, bondsValues) {
-  const stockTotalBase = sumPositionsInBase(stocksValues);
-  const bondTotalBase = sumPositionsInBase(bondsValues);
+export function getCurrentAllocation(stocksValues, bondsValues, rates = activeFxRates) {
+  const stockTotalBase = sumPositionsInBase(stocksValues, rates);
+  const bondTotalBase = sumPositionsInBase(bondsValues, rates);
   const grandTotal = stockTotalBase + bondTotalBase;
   const hasPositions = grandTotal > 0;
   const currentStockPct = hasPositions
@@ -173,12 +240,12 @@ export function getCurrentAllocation(stocksValues, bondsValues) {
     driftFrom(targetStockPct) {
       return hasPositions ? Math.abs(currentStockPct - targetStockPct) : 0;
     },
+    isDriftHigh(targetStockPct, threshold = 10) {
+      return hasPositions ? Math.abs(currentStockPct - targetStockPct) >= threshold : false;
+    },
   };
 }
 
-// Water-fill an equalizing distribution of `budget` across positions holding
-// `values` (all in the same base currency): fill the lowest positions first so
-// they converge toward a common level, then spread any leftover evenly.
 export function waterfillEqual(values, budget) {
   const n = values.length;
   if (n === 0 || budget <= 0) {
@@ -192,19 +259,29 @@ export function waterfillEqual(values, budget) {
   return need.map((v) => v + leftover / n);
 }
 
-// Split an aggregate buy amount (as returned by the backend, in `budgetCurrency`)
-// across the given positions, returning the per-position amount converted back to
-// each position's own currency. Approximate — for display only.
-export function distributeBuys(rows, budgetAmount, budgetCurrency) {
+export function distributeBuys(rows, budgetAmount, budgetCurrency, rates = activeFxRates) {
   if (!Array.isArray(rows) || rows.length === 0 || !(budgetAmount > 0)) {
     return [];
   }
-  const budgetBase = toBase(budgetAmount, budgetCurrency);
-  const baseValues = rows.map((row) => toBase(row.value, row.currency));
+  const budgetBase = toBase(budgetAmount, budgetCurrency, rates);
+  const baseValues = rows.map((row) => toBase(row.value, row.currency, rates));
   const baseBuys = waterfillEqual(baseValues, budgetBase);
   return rows.map((row, i) => ({
     currency: row.currency,
-    amount: fromBase(baseBuys[i], row.currency),
+    amount: fromBase(baseBuys[i], row.currency, rates),
+    isSell: false,
+  }));
+}
+
+export function mapServerBreakdown(rows) {
+  if (!Array.isArray(rows)) {
+    return [];
+  }
+
+  return rows.map((row) => ({
+    currency: row.currency,
+    amount: normalizeDiffAmount(row.amount) ?? 0,
+    isSell: Boolean(row.isSell),
   }));
 }
 
@@ -241,15 +318,16 @@ export function parseApiFieldErrors(errorData) {
     errors.forEach((item) => {
       const field = item.field ?? item.key;
       const message = item.message ?? item.error ?? String(item);
-      if (field && FIELD_KEYS[field]) {
-        fieldErrors[FIELD_KEYS[field]] = normalizeErrorMessages(message);
+      const mapped = field ? mapFieldKey(field) : null;
+      if (mapped) {
+        fieldErrors[mapped] = normalizeErrorMessages(message);
       } else {
         messages.push(normalizeErrorMessages(message));
       }
     });
   } else if (typeof errors === 'object') {
     Object.entries(errors).forEach(([field, message]) => {
-      const mapped = FIELD_KEYS[field];
+      const mapped = mapFieldKey(field);
       if (mapped) {
         fieldErrors[mapped] = normalizeErrorMessages(message);
       } else {
@@ -269,4 +347,28 @@ export function parseApiFieldErrors(errorData) {
         : 'Не удалось выполнить расчёт. Проверьте введённые данные.';
 
   return { fieldErrors, summary };
+}
+
+export function buildCalculatePayload({
+  ratio,
+  assets,
+  contributionAmount,
+  calculationMode,
+}) {
+  const isRebalanceMode = calculationMode === 'rebalance';
+  const contributionNumber = Number(contributionAmount.value);
+  const contributionValue = isRebalanceMode
+    ? (contributionAmount.value === '' || Number.isNaN(contributionNumber) ? 0 : contributionNumber)
+    : contributionNumber;
+
+  return {
+    ratio: ratio.text,
+    stockValues: assets.stocksValues,
+    bondValues: assets.bondsValues,
+    contributionAmount: {
+      value: String(contributionValue),
+      currency: contributionAmount.currency,
+    },
+    mode: calculationMode,
+  };
 }

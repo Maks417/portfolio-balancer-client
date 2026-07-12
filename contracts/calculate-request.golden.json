@@ -1,0 +1,14 @@
+{
+  "ratio": "50/50",
+  "stockValues": [
+    { "value": "60", "currency": "rub" }
+  ],
+  "bondValues": [
+    { "value": "40", "currency": "rub" }
+  ],
+  "contributionAmount": {
+    "value": "100",
+    "currency": "rub"
+  },
+  "mode": "contribution"
+}

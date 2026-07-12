@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Portfolio Balancer">
+  <rect width="64" height="64" rx="12" fill="#1f6feb"/>
+  <path d="M14 42h36" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+  <path d="M20 30h10v12H20zM34 22h10v20H34z" fill="#ffffff"/>
+</svg>
