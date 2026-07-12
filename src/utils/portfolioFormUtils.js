@@ -4,6 +4,16 @@ export const currencyOptions = [
   { value: 'eur', text: '€', locale: 'de-DE' },
 ];
 
+export const ALLOCATION_PRESETS = [
+  { label: '50/50', ratio: '50/50', slider: 50 },
+  { label: '60/40', ratio: '60/40', slider: 60 },
+  { label: '70/30', ratio: '70/30', slider: 70 },
+  { label: '80/20', ratio: '80/20', slider: 80 },
+  { label: '100 (акции)', ratio: '100', slider: 100 },
+  { label: '0 (облигации)', ratio: '0', slider: 0 },
+  { label: '60/30/10', ratio: '60/30/10', slider: 60, threeWay: true },
+];
+
 export const DEFAULT_FX_RATES = { rub: 1, usd: 90, eur: 100 };
 
 let activeFxRates = { ...DEFAULT_FX_RATES };
@@ -57,8 +67,11 @@ const FIELD_LABELS = {
   stocksValues: 'Позиции в акциях',
   bondValues: 'Позиции в облигациях',
   bondsValues: 'Позиции в облигациях',
+  cashValues: 'Наличные',
   contributionAmount: 'Сумма взноса',
   mode: 'Режим расчёта',
+  driftThreshold: 'Допуск отклонения',
+  minTradeAmount: 'Минимальная сделка',
 };
 
 const FIELD_KEYS = {
@@ -67,8 +80,11 @@ const FIELD_KEYS = {
   stocksValues: 'stocks',
   bondValues: 'bonds',
   bondsValues: 'bonds',
+  cashValues: 'cash',
   contributionAmount: 'contribution',
   mode: 'mode',
+  driftThreshold: 'driftThreshold',
+  minTradeAmount: 'minTradeAmount',
 };
 
 function mapFieldKey(field) {
@@ -85,6 +101,15 @@ function mapFieldKey(field) {
   }
   if (normalized.startsWith('bondvalues')) {
     return 'bonds';
+  }
+  if (normalized.startsWith('cashvalues')) {
+    return 'cash';
+  }
+  if (normalized.startsWith('driftthreshold')) {
+    return 'driftThreshold';
+  }
+  if (normalized.startsWith('mintradeamount')) {
+    return 'minTradeAmount';
   }
   if (normalized.startsWith('ratio')) {
     return 'ratio';
@@ -105,31 +130,42 @@ export function validateRatioText(text) {
     return 'is-valid';
   }
 
-  if (text.length > 3 && text.length < 6) {
-    const parts = text.split('/');
-    const sum = parts.reduce((prev, curr) => (Number(prev) || 0) + (Number(curr) || 0), 0);
-    return parts.length === 2 && sum === 100 ? 'is-valid' : 'is-invalid';
+  if (!text.includes('/')) {
+    return 'is-invalid';
   }
 
-  return 'is-invalid';
+  const parts = text.split('/');
+  if (parts.length !== 2 && parts.length !== 3) {
+    return 'is-invalid';
+  }
+
+  const sum = parts.reduce((prev, curr) => (Number(prev) || 0) + (Number(curr) || 0), 0);
+  return sum === 100 ? 'is-valid' : 'is-invalid';
 }
 
 export function getRatioParts(text) {
   if (text === '100') {
-    return { stocks: 100, bonds: 0 };
+    return { stocks: 100, bonds: 0, cash: 0 };
   }
   if (text === '0') {
-    return { stocks: 0, bonds: 100 };
+    return { stocks: 0, bonds: 100, cash: 0 };
   }
 
   const parts = text.split('/');
+  if (parts.length === 3) {
+    const stocks = Number(parts[0]) || 0;
+    const bonds = Number(parts[1]) || 0;
+    const cash = Number(parts[2]) || 0;
+    return { stocks, bonds, cash };
+  }
+
   if (parts.length === 2) {
     const stocks = Number(parts[0]) || 0;
     const bonds = Number(parts[1]) || 0;
-    return { stocks, bonds };
+    return { stocks, bonds, cash: 0 };
   }
 
-  return { stocks: 50, bonds: 50 };
+  return { stocks: 50, bonds: 50, cash: 0 };
 }
 
 export function ratioTextFromSlider(stocksPercent) {
@@ -221,24 +257,48 @@ export function sumPositionsInBase(rows, rates = activeFxRates) {
   return rows.reduce((total, row) => total + toBase(row.value, row.currency, rates), 0);
 }
 
-export function getCurrentAllocation(stocksValues, bondsValues, rates = activeFxRates) {
+export function getCurrentAllocation(
+  stocksValues,
+  bondsValues,
+  cashValues = [],
+  rates = activeFxRates,
+) {
   const stockTotalBase = sumPositionsInBase(stocksValues, rates);
   const bondTotalBase = sumPositionsInBase(bondsValues, rates);
-  const grandTotal = stockTotalBase + bondTotalBase;
+  const cashTotalBase = sumPositionsInBase(cashValues, rates);
+  const grandTotal = stockTotalBase + bondTotalBase + cashTotalBase;
   const hasPositions = grandTotal > 0;
   const currentStockPct = hasPositions
     ? Math.round((stockTotalBase / grandTotal) * 100)
     : 0;
-  const currentBondPct = hasPositions ? 100 - currentStockPct : 0;
+  const currentBondPct = hasPositions
+    ? Math.round((bondTotalBase / grandTotal) * 100)
+    : 0;
+  const currentCashPct = hasPositions ? 100 - currentStockPct - currentBondPct : 0;
 
   return {
     stockTotalBase,
     bondTotalBase,
+    cashTotalBase,
     hasPositions,
     currentStockPct,
     currentBondPct,
+    currentCashPct,
     driftFrom(targetStockPct) {
       return hasPositions ? Math.abs(currentStockPct - targetStockPct) : 0;
+    },
+    maxDrift(targets) {
+      if (!hasPositions) {
+        return 0;
+      }
+      const drifts = [
+        Math.abs(currentStockPct - (targets.stocks ?? 0)),
+        Math.abs(currentBondPct - (targets.bonds ?? 0)),
+      ];
+      if (targets.cash > 0 || currentCashPct > 0) {
+        drifts.push(Math.abs(currentCashPct - (targets.cash ?? 0)));
+      }
+      return Math.max(...drifts);
     },
     isDriftHigh(targetStockPct, threshold = 10) {
       return hasPositions ? Math.abs(currentStockPct - targetStockPct) >= threshold : false;
@@ -285,9 +345,9 @@ export function mapServerBreakdown(rows) {
   }));
 }
 
-export function hasMixedCurrencies(stocksValues, bondsValues, contributionCurrency) {
+export function hasMixedCurrencies(stocksValues, bondsValues, contributionCurrency, cashValues = []) {
   const currencies = new Set(
-    [...stocksValues, ...bondsValues]
+    [...stocksValues, ...bondsValues, ...cashValues]
       .map((row) => row.currency)
       .filter(Boolean),
   );
@@ -354,6 +414,8 @@ export function buildCalculatePayload({
   assets,
   contributionAmount,
   calculationMode,
+  driftThreshold,
+  minTradeAmount,
 }) {
   const isRebalanceMode = calculationMode === 'rebalance';
   const contributionNumber = Number(contributionAmount.value);
@@ -361,14 +423,27 @@ export function buildCalculatePayload({
     ? (contributionAmount.value === '' || Number.isNaN(contributionNumber) ? 0 : contributionNumber)
     : contributionNumber;
 
-  return {
+  const payload = {
     ratio: ratio.text,
     stockValues: assets.stocksValues,
     bondValues: assets.bondsValues,
+    cashValues: assets.cashValues ?? [],
     contributionAmount: {
       value: String(contributionValue),
       currency: contributionAmount.currency,
     },
     mode: calculationMode,
   };
+
+  const drift = Number(driftThreshold);
+  if (Number.isFinite(drift) && drift > 0) {
+    payload.driftThreshold = drift;
+  }
+
+  const minTrade = Number(minTradeAmount);
+  if (Number.isFinite(minTrade) && minTrade > 0) {
+    payload.minTradeAmount = minTrade;
+  }
+
+  return payload;
 }

@@ -16,6 +16,7 @@ describe('validateRatioText', () => {
     expect(validateRatioText('100')).toBe('is-valid');
     expect(validateRatioText('0')).toBe('is-valid');
     expect(validateRatioText('70/30')).toBe('is-valid');
+    expect(validateRatioText('60/30/10')).toBe('is-valid');
   });
 
   it('rejects invalid fractions', () => {

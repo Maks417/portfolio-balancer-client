@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Alert,
   Form,
@@ -17,6 +18,7 @@ import {
   getApiBaseUrl,
 } from '../api/portfolioApi';
 import {
+  ALLOCATION_PRESETS,
   BREAKDOWN_ESTIMATE_NOTE,
   buildCalculatePayload,
   currencyOptions,
@@ -36,16 +38,29 @@ import {
 import {
   buildScenarioState,
   clearDraftState,
+  clearScenarioFromUrl,
   getShareableUrl,
   loadDraftState,
   readScenarioFromUrl,
   saveDraftState,
-  writeScenarioToUrl,
 } from '../utils/scenarioStorage';
+import {
+  buildResultCsv,
+  buildResultText,
+  copyTextToClipboard,
+  downloadCsv,
+} from '../utils/resultExport';
+import { trackEvent } from '../utils/analytics';
+import { useLocale } from '../i18n/LocaleContext';
+import { SUPPORTED_LOCALES } from '../i18n/translations';
+import CsvImportModal from './CsvImportModal';
+import ScenarioLibrary from './ScenarioLibrary';
+import GlidePathPanel from './GlidePathPanel';
 
 const defaultAssets = () => ({
   stocksValues: [{ value: '', currency: currencyOptions[0].value }],
   bondsValues: [{ value: '', currency: currencyOptions[0].value }],
+  cashValues: [{ value: '', currency: currencyOptions[0].value }],
 });
 
 const defaultContribution = () => ({
@@ -54,35 +69,45 @@ const defaultContribution = () => ({
 });
 
 function applyScenarioState(scenario) {
+  const assets = scenario.assets ?? defaultAssets();
   return {
     ratio: scenario.ratio ?? { text: '50/50', value: 50 },
-    assets: scenario.assets ?? defaultAssets(),
+    assets: {
+      stocksValues: assets.stocksValues ?? defaultAssets().stocksValues,
+      bondsValues: assets.bondsValues ?? defaultAssets().bondsValues,
+      cashValues: assets.cashValues ?? defaultAssets().cashValues,
+    },
     contributionAmount: scenario.contributionAmount ?? defaultContribution(),
     calculationMode: scenario.calculationMode ?? CALCULATION_MODES.contribution,
+    driftThreshold: scenario.driftThreshold ?? '',
+    minTradeAmount: scenario.minTradeAmount ?? '',
   };
 }
 
 const BalanceForm = () => {
+  const { locale, setLocale, t } = useLocale();
   const resultRef = useRef(null);
   const initialScenario = readScenarioFromUrl() ?? loadDraftState();
+  const applied = applyScenarioState(initialScenario ?? {});
 
   const [ratioValidClass, setRatioValidClass] = useState(
-    validateRatioText(initialScenario?.ratio?.text ?? '50/50'),
+    validateRatioText(applied.ratio.text),
   );
-  const [ratio, setRatio] = useState(initialScenario?.ratio ?? { text: '50/50', value: 50 });
-  const [assets, setAssets] = useState(initialScenario?.assets ?? defaultAssets());
-  const [contributionAmount, setContributionAmount] = useState(
-    initialScenario?.contributionAmount ?? defaultContribution(),
-  );
-  const [calculationMode, setCalculationMode] = useState(
-    initialScenario?.calculationMode ?? CALCULATION_MODES.contribution,
-  );
+  const [ratio, setRatio] = useState(applied.ratio);
+  const [assets, setAssets] = useState(applied.assets);
+  const [contributionAmount, setContributionAmount] = useState(applied.contributionAmount);
+  const [calculationMode, setCalculationMode] = useState(applied.calculationMode);
+  const [driftThreshold, setDriftThreshold] = useState(applied.driftThreshold);
+  const [minTradeAmount, setMinTradeAmount] = useState(applied.minTradeAmount);
   const [submitDisabled, setSubmitDisabled] = useState(false);
   const [clientErrors, setClientErrors] = useState({});
   const [fieldErrors, setFieldErrors] = useState({});
   const [result, setResult] = useState(null);
   const [ratesError, setRatesError] = useState(null);
   const [shareMessage, setShareMessage] = useState('');
+  const [exportMessage, setExportMessage] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
+  const [libraryOpen, setLibraryOpen] = useState(false);
   const [configError, setConfigError] = useState(getApiBaseUrl() ? null : 'API не настроен');
 
   const ratioParts = getRatioParts(ratio.text);
@@ -90,9 +115,14 @@ const BalanceForm = () => {
     assets.stocksValues,
     assets.bondsValues,
     contributionAmount.currency,
+    assets.cashValues,
   );
 
-  const allocation = getCurrentAllocation(assets.stocksValues, assets.bondsValues);
+  const allocation = getCurrentAllocation(
+    assets.stocksValues,
+    assets.bondsValues,
+    assets.cashValues,
+  );
   const drift = allocation.driftFrom(ratioParts.stocks);
   const isRebalanceMode = calculationMode === CALCULATION_MODES.rebalance;
 
@@ -110,7 +140,9 @@ const BalanceForm = () => {
     ratioValidClass === 'is-valid' &&
     (isRebalanceMode || (contributionAmount.value !== '' && contributionNumber > 0)) &&
     !Number.isNaN(contributionNumber) &&
-    (hasFilledPosition(assets.stocksValues) || hasFilledPosition(assets.bondsValues));
+    (hasFilledPosition(assets.stocksValues) ||
+      hasFilledPosition(assets.bondsValues) ||
+      hasFilledPosition(assets.cashValues));
 
   useEffect(() => {
     let cancelled = false;
@@ -135,15 +167,22 @@ const BalanceForm = () => {
   }, []);
 
   useEffect(() => {
+    if (readScenarioFromUrl()) {
+      clearScenarioFromUrl();
+    }
+  }, []);
+
+  useEffect(() => {
     const scenario = buildScenarioState({
       ratio,
       assets,
       contributionAmount,
       calculationMode,
+      driftThreshold,
+      minTradeAmount,
     });
     saveDraftState(scenario);
-    writeScenarioToUrl(scenario);
-  }, [ratio, assets, contributionAmount, calculationMode]);
+  }, [ratio, assets, contributionAmount, calculationMode, driftThreshold, minTradeAmount]);
 
   const applyRatio = (text, sliderValue) => {
     setRatio({ text, value: sliderValue });
@@ -206,8 +245,12 @@ const BalanceForm = () => {
         'Значение пропорции должно быть 100, 0 или дробное (например, 50/50).';
     }
 
-    if (!hasFilledPosition(assets.stocksValues) && !hasFilledPosition(assets.bondsValues)) {
-      errors.stocks = 'Укажите хотя бы одну позицию в акциях или облигациях.';
+    if (
+      !hasFilledPosition(assets.stocksValues) &&
+      !hasFilledPosition(assets.bondsValues) &&
+      !hasFilledPosition(assets.cashValues)
+    ) {
+      errors.stocks = 'Укажите хотя бы одну позицию в акциях, облигациях или наличных.';
       errors.bonds = errors.stocks;
     }
 
@@ -246,11 +289,14 @@ const BalanceForm = () => {
         assets,
         contributionAmount,
         calculationMode,
+        driftThreshold,
+        minTradeAmount,
       });
       const response = await calculatePortfolio(payload);
       const currency = response.currency ?? contributionAmount.currency;
       const stocksAmount = normalizeDiffAmount(response.stocksDiff);
       const bondsAmount = normalizeDiffAmount(response.bondsDiff);
+      const cashAmount = normalizeDiffAmount(response.cashDiff);
 
       if (response.fx?.ratesPerUnitInRub) {
         setFxRates(response.fx.ratesPerUnitInRub, response.fx);
@@ -261,12 +307,16 @@ const BalanceForm = () => {
         currency,
         stocksAmount,
         bondsAmount,
+        cashAmount,
         mode: response.mode ?? calculationMode,
         contributionOnlyNote: response.contributionOnlyNote,
+        toleranceNote: response.toleranceNote,
         fxDisclaimer: formatFxDisclaimer(response.fx),
         stocksBreakdown: mapServerBreakdown(response.stocksBreakdown),
         bondsBreakdown: mapServerBreakdown(response.bondsBreakdown),
+        cashBreakdown: mapServerBreakdown(response.cashBreakdown),
       });
+      trackEvent('calculate_success', { mode: calculationMode });
       scrollToResult();
     } catch (error) {
       if (error.fieldErrors) {
@@ -287,7 +337,14 @@ const BalanceForm = () => {
 
   const handleShareScenario = async () => {
     const url = getShareableUrl(
-      buildScenarioState({ ratio, assets, contributionAmount, calculationMode }),
+      buildScenarioState({
+        ratio,
+        assets,
+        contributionAmount,
+        calculationMode,
+        driftThreshold,
+        minTradeAmount,
+      }),
     );
 
     try {
@@ -300,15 +357,81 @@ const BalanceForm = () => {
 
   const handleResetDraft = () => {
     clearDraftState();
+    clearScenarioFromUrl();
     const reset = applyScenarioState({});
     setRatio(reset.ratio);
     setRatioValidClass(validateRatioText(reset.ratio.text));
     setAssets(reset.assets);
     setContributionAmount(reset.contributionAmount);
     setCalculationMode(reset.calculationMode);
+    setDriftThreshold(reset.driftThreshold);
+    setMinTradeAmount(reset.minTradeAmount);
     setResult(null);
     setShareMessage('');
+    setExportMessage('');
   };
+
+  const handleApplyPreset = (preset) => {
+    applyRatio(preset.ratio, preset.slider);
+  };
+
+  const handleImportAssets = (importedAssets) => {
+    setAssets((prev) => ({
+      stocksValues: importedAssets.stocksValues?.length
+        ? importedAssets.stocksValues
+        : prev.stocksValues,
+      bondsValues: importedAssets.bondsValues?.length
+        ? importedAssets.bondsValues
+        : prev.bondsValues,
+      cashValues: importedAssets.cashValues?.length
+        ? importedAssets.cashValues
+        : prev.cashValues,
+    }));
+  };
+
+  const handleLoadScenario = (scenario) => {
+    const next = applyScenarioState(scenario);
+    setRatio(next.ratio);
+    setRatioValidClass(validateRatioText(next.ratio.text));
+    setAssets(next.assets);
+    setContributionAmount(next.contributionAmount);
+    setCalculationMode(next.calculationMode);
+    setDriftThreshold(next.driftThreshold);
+    setMinTradeAmount(next.minTradeAmount);
+  };
+
+  const handleCopyResult = async () => {
+    if (!result || result.type !== 'success') {
+      return;
+    }
+    try {
+      await copyTextToClipboard(buildResultText(result));
+      setExportMessage('Результат скопирован в буфер обмена.');
+    } catch {
+      setExportMessage('Не удалось скопировать результат.');
+    }
+  };
+
+  const handleDownloadResult = () => {
+    if (!result || result.type !== 'success') {
+      return;
+    }
+    downloadCsv(buildResultCsv(result));
+    setExportMessage('CSV загружен.');
+  };
+
+  const handleApplyGlidePath = ({ ratioText, sliderValue }) => {
+    applyRatio(ratioText, sliderValue);
+  };
+
+  const currentScenarioState = buildScenarioState({
+    ratio,
+    assets,
+    contributionAmount,
+    calculationMode,
+    driftThreshold,
+    minTradeAmount,
+  });
 
   const fieldError = (key) => clientErrors[key] || fieldErrors[key];
 
@@ -331,11 +454,14 @@ const BalanceForm = () => {
 
   const renderAssetClass = (name, labelId, valuesArr, fieldErrorKey, totalBase) => {
     const isStocks = name === 'stocksValues';
-    const label = isStocks ? 'Акции' : 'Облигации';
+    const isCash = name === 'cashValues';
+    const label = isStocks ? 'Акции' : isCash ? 'Наличные' : 'Облигации';
     const description = isStocks
       ? 'Стоимость каждой позиции в акциях'
-      : 'Стоимость каждой позиции в облигациях';
-    const modifier = isStocks ? 'stock' : 'bond';
+      : isCash
+        ? 'Свободные средства и депозиты'
+        : 'Стоимость каждой позиции в облигациях';
+    const modifier = isStocks ? 'stock' : isCash ? 'cash' : 'bond';
 
     return (
       <FormGroup className={`form-group asset-class asset-class--${modifier}`}>
@@ -418,12 +544,29 @@ const BalanceForm = () => {
   return (
     <div className="calculator-card">
       <header className="calculator-card__header">
-        <span className="calculator-card__eyebrow">Финансовый калькулятор</span>
-        <h1 className="calculator-card__title">Балансировщик портфеля</h1>
-        <p className="calculator-card__subtitle">
-          Укажите текущие позиции и целевую долю акций/облигаций — подскажем,
-          сколько докупить или как перераспределить активы.
-        </p>
+        <div className="calculator-card__header-row">
+          <span className="calculator-card__eyebrow">Финансовый калькулятор</span>
+          <FormGroup className="locale-switcher mb-0">
+            <Label for="locale" className="visually-hidden">
+              {t('locale.label')}
+            </Label>
+            <Input
+              id="locale"
+              type="select"
+              bsSize="sm"
+              value={locale}
+              onChange={(e) => setLocale(e.target.value)}
+            >
+              {SUPPORTED_LOCALES.map((code) => (
+                <option key={code} value={code}>
+                  {code.toUpperCase()}
+                </option>
+              ))}
+            </Input>
+          </FormGroup>
+        </div>
+        <h1 className="calculator-card__title">{t('app.title')}</h1>
+        <p className="calculator-card__subtitle">{t('app.subtitle')}</p>
       </header>
 
       {configError && (
@@ -453,12 +596,8 @@ const BalanceForm = () => {
               value={calculationMode}
               onChange={(e) => setCalculationMode(e.target.value)}
             >
-              <option value={CALCULATION_MODES.contribution}>
-                Распределить новый взнос
-              </option>
-              <option value={CALCULATION_MODES.rebalance}>
-                Полная балансировка (покупка и продажа)
-              </option>
+              <option value={CALCULATION_MODES.contribution}>{t('mode.contribution')}</option>
+              <option value={CALCULATION_MODES.rebalance}>{t('mode.rebalance')}</option>
             </Input>
             <FormText>
               {isRebalanceMode
@@ -487,6 +626,12 @@ const BalanceForm = () => {
                 <span className="ratio-tile__label">Облигации</span>
                 <span className="ratio-tile__value">{ratioParts.bonds}%</span>
               </div>
+              {ratioParts.cash > 0 && (
+                <div className="ratio-tile ratio-tile--cash">
+                  <span className="ratio-tile__label">Наличные</span>
+                  <span className="ratio-tile__value">{ratioParts.cash}%</span>
+                </div>
+              )}
             </div>
             <div className="range-slider__container">
               <RangeSlider
@@ -510,9 +655,24 @@ const BalanceForm = () => {
               onChange={validateRatio}
             />
             <FormText className="ratio-helper">
-              Введите 100 (только акции), 0 (только облигации) или дробь, где сумма
-              равна 100 (например, 70/30).
+              Введите 100 (только акции), 0 (только облигации), дробь 70/30 или 60/30/10
+              (акции/облигации/наличные), где сумма равна 100.
             </FormText>
+            <div className="preset-row">
+              {ALLOCATION_PRESETS.map((preset) => (
+                <Button
+                  key={preset.label}
+                  type="button"
+                  size="sm"
+                  color="secondary"
+                  outline
+                  onClick={() => handleApplyPreset(preset)}
+                >
+                  {preset.label}
+                </Button>
+              ))}
+            </div>
+            <GlidePathPanel onApplyRatio={handleApplyGlidePath} />
             {fieldError('ratio') && (
               <FormFeedback className="d-block">{fieldError('ratio')}</FormFeedback>
             )}
@@ -582,12 +742,64 @@ const BalanceForm = () => {
               'bonds',
               allocation.bondTotalBase,
             )}
+            <div className="asset-divider" aria-hidden="true" />
+            {renderAssetClass(
+              'cashValues',
+              'cashValue',
+              assets.cashValues,
+              'cash',
+              allocation.cashTotalBase,
+            )}
+          </div>
+          <div className="portfolio-import-row">
+            <Button type="button" color="secondary" outline onClick={() => setImportOpen(true)}>
+              {t('action.import')}
+            </Button>
+          </div>
+        </section>
+
+        <section className="form-section" aria-labelledby="section-advanced">
+          <h2 className="form-section__title" id="section-advanced">
+            <span className="form-section__number">4</span>
+            <span>
+              Дополнительные параметры
+              <small>Допуск отклонения и минимальный размер сделки</small>
+            </span>
+          </h2>
+          <div className="advanced-grid">
+            <FormGroup>
+              <Label for="driftThreshold">Допуск отклонения (%)</Label>
+              <Input
+                id="driftThreshold"
+                type="number"
+                min="0"
+                max="50"
+                step="0.5"
+                value={driftThreshold}
+                placeholder="0"
+                onChange={(e) => setDriftThreshold(e.target.value)}
+              />
+              <FormText>Для режима полной балансировки: не ребалансировать, если отклонение ниже порога.</FormText>
+            </FormGroup>
+            <FormGroup>
+              <Label for="minTradeAmount">Минимальная сделка</Label>
+              <Input
+                id="minTradeAmount"
+                type="number"
+                min="0"
+                step="any"
+                value={minTradeAmount}
+                placeholder="0"
+                onChange={(e) => setMinTradeAmount(e.target.value)}
+              />
+              <FormText>Сделки меньше порога будут округлены до нуля в разбивке по позициям.</FormText>
+            </FormGroup>
           </div>
         </section>
 
         <section className="form-section" aria-labelledby="section-contribution">
           <h2 className="form-section__title" id="section-contribution">
-            <span className="form-section__number">4</span>
+            <span className="form-section__number">5</span>
             <span>
               {isRebalanceMode ? 'Дополнительный взнос (необязательно)' : 'Новый взнос'}
               <small>
@@ -646,14 +858,20 @@ const BalanceForm = () => {
                 Расчёт…
               </>
             ) : (
-              'Рассчитать'
+              t('action.calculate')
             )}
           </Button>
           <Button type="button" color="secondary" outline onClick={handleShareScenario}>
-            Поделиться сценарием
+            {t('action.share')}
+          </Button>
+          <Button type="button" color="secondary" outline onClick={() => setLibraryOpen(true)}>
+            {t('action.library')}
+          </Button>
+          <Button tag={Link} to="/compare" color="secondary" outline>
+            {t('action.compare')}
           </Button>
           <Button type="button" color="link" onClick={handleResetDraft}>
-            Сбросить черновик
+            {t('action.reset')}
           </Button>
           {shareMessage && <p className="form-actions__hint">{shareMessage}</p>}
           <p className="form-actions__hint">
@@ -677,13 +895,27 @@ const BalanceForm = () => {
           <div className="result-card" role="status" aria-live="polite">
             <div className="result-card__header">
               <h3 className="result-card__title">Результат расчёта</h3>
-              <Button
-                type="button"
-                className="result-card__edit"
-                onClick={() => setResult(null)}
-              >
-                Изменить
-              </Button>
+              <div className="result-card__actions">
+                <Button type="button" color="secondary" outline size="sm" onClick={handleCopyResult}>
+                  {t('action.copy')}
+                </Button>
+                <Button
+                  type="button"
+                  color="secondary"
+                  outline
+                  size="sm"
+                  onClick={handleDownloadResult}
+                >
+                  {t('action.downloadCsv')}
+                </Button>
+                <Button
+                  type="button"
+                  className="result-card__edit"
+                  onClick={() => setResult(null)}
+                >
+                  Изменить
+                </Button>
+              </div>
             </div>
 
             <div className="result-metrics">
@@ -719,6 +951,18 @@ const BalanceForm = () => {
                     : '—'}
                 </span>
               </div>
+              {(result.cashAmount != null && result.cashAmount !== 0) && (
+                <div className="result-metric result-metric--cash">
+                  <span className="result-metric__label">Наличные</span>
+                  <span className="result-metric__value">
+                    {formatSignedAmount(
+                      result.cashAmount,
+                      result.currency,
+                      result.cashAmount < 0,
+                    )}
+                  </span>
+                </div>
+              )}
             </div>
 
             {resultTotal > 0 && (
@@ -741,11 +985,19 @@ const BalanceForm = () => {
               </Alert>
             )}
 
+            {result.toleranceNote && (
+              <Alert color="info" className="result-note">
+                {result.toleranceNote}
+              </Alert>
+            )}
+
             {renderBreakdown('Акции', 'stock', result.stocksBreakdown)}
             {renderBreakdown('Облигации', 'bond', result.bondsBreakdown)}
+            {renderBreakdown('Наличные', 'cash', result.cashBreakdown)}
 
             <p className="result-disclaimer">{result.fxDisclaimer}</p>
             <p className="result-disclaimer">{BREAKDOWN_ESTIMATE_NOTE}</p>
+            {exportMessage && <p className="form-actions__hint">{exportMessage}</p>}
           </div>
         )}
 
@@ -756,6 +1008,18 @@ const BalanceForm = () => {
           </Alert>
         )}
       </section>
+
+      <CsvImportModal
+        isOpen={importOpen}
+        toggle={() => setImportOpen(false)}
+        onImport={handleImportAssets}
+      />
+      <ScenarioLibrary
+        isOpen={libraryOpen}
+        toggle={() => setLibraryOpen(false)}
+        currentState={currentScenarioState}
+        onLoadScenario={handleLoadScenario}
+      />
     </div>
   );
 };

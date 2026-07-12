@@ -797,3 +797,180 @@ input[type="number"] {
     }
   }
 }
+
+.calculator-card__header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.locale-switcher {
+  min-width: 5rem;
+}
+
+.preset-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.advanced-grid {
+  display: grid;
+  gap: 1rem;
+
+  @include media-breakpoint-up(md) {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.portfolio-import-row {
+  margin-top: 1rem;
+}
+
+.glide-path {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid $color-border;
+  border-radius: $control-radius;
+  background: $color-section-bg;
+
+  &__title {
+    font-size: 0.95rem;
+    margin-bottom: 0.75rem;
+  }
+
+  &__inputs {
+    display: grid;
+    gap: 0.75rem;
+
+    @include media-breakpoint-up(sm) {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+}
+
+.ratio-tile--cash {
+  @include accent-surface($color-cash-light, $color-cash-border, $color-cash-dark);
+}
+
+.asset-class--cash {
+  .asset-class__label,
+  .asset-class__total {
+    color: $color-cash-dark;
+  }
+}
+
+.btn-add-position--cash {
+  border-color: $color-cash-border;
+  color: $color-cash-dark;
+}
+
+.result-metric--cash {
+  @include accent-surface($color-cash-light, $color-cash-border, $color-cash-dark);
+}
+
+.result-breakdown__title--cash,
+.result-breakdown__amount--cash {
+  color: $color-cash-dark;
+}
+
+.result-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.library-save-row {
+  display: grid;
+  gap: 0.75rem;
+
+  @include media-breakpoint-up(sm) {
+    grid-template-columns: 1fr auto;
+  }
+}
+
+.library-list {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+
+  &__item {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    align-items: center;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid $color-border;
+  }
+
+  &__meta {
+    display: block;
+    font-size: 0.75rem;
+    color: $color-muted;
+  }
+
+  &__actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+}
+
+.compare-grid {
+  display: grid;
+  gap: 1rem;
+  margin: 1rem 0;
+
+  @include media-breakpoint-up(md) {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.compare-card {
+  border: 1px solid $color-border;
+  border-radius: $control-radius;
+  padding: 1rem;
+  background: $color-section-bg;
+
+  &--empty {
+    opacity: 0.7;
+  }
+
+  &__metrics {
+    display: grid;
+    gap: 0.5rem;
+    margin: 0;
+
+    dt {
+      font-size: 0.75rem;
+      color: $color-muted;
+    }
+
+    dd {
+      margin: 0 0 0.5rem;
+      font-weight: 600;
+    }
+  }
+}
+
+.compare-inputs {
+  display: grid;
+  gap: 1rem;
+}
+
+@media print {
+  .form-actions,
+  .portfolio-import-row,
+  .glide-path,
+  .preset-row,
+  .locale-switcher,
+  .result-card__actions {
+    display: none !important;
+  }
+
+  .calculator-card {
+    box-shadow: none;
+    border: none;
+  }
+}

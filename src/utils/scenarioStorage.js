@@ -1,4 +1,5 @@
 const STORAGE_KEY = 'portfolio-balancer:draft:v1';
+const LIBRARY_KEY = 'portfolio-balancer:library:v1';
 const SCENARIO_PARAM = 'scenario';
 const SCENARIO_VERSION = 1;
 
@@ -7,6 +8,8 @@ export function buildScenarioState({
   assets,
   contributionAmount,
   calculationMode,
+  driftThreshold,
+  minTradeAmount,
 }) {
   return {
     version: SCENARIO_VERSION,
@@ -14,6 +17,8 @@ export function buildScenarioState({
     assets,
     contributionAmount,
     calculationMode,
+    driftThreshold,
+    minTradeAmount,
   };
 }
 
@@ -42,13 +47,6 @@ export function decodeScenarioState(encoded) {
 export function readScenarioFromUrl(search = window.location.search) {
   const params = new URLSearchParams(search);
   return decodeScenarioState(params.get(SCENARIO_PARAM));
-}
-
-export function writeScenarioToUrl(state) {
-  const params = new URLSearchParams(window.location.search);
-  params.set(SCENARIO_PARAM, encodeScenarioState(state));
-  const nextUrl = `${window.location.pathname}?${params.toString()}`;
-  window.history.replaceState({}, '', nextUrl);
 }
 
 export function clearScenarioFromUrl() {
@@ -97,4 +95,54 @@ export function getShareableUrl(state) {
   const params = new URLSearchParams();
   params.set(SCENARIO_PARAM, encodeScenarioState(state));
   return `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+}
+
+function readLibrary() {
+  try {
+    const raw = localStorage.getItem(LIBRARY_KEY);
+    if (!raw) {
+      return [];
+    }
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeLibrary(entries) {
+  try {
+    localStorage.setItem(LIBRARY_KEY, JSON.stringify(entries));
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
+export function listNamedScenarios() {
+  return readLibrary();
+}
+
+export function saveNamedScenario(name, state) {
+  const entries = readLibrary();
+  const id = crypto.randomUUID?.() ?? `scenario-${Date.now()}`;
+  const entry = {
+    id,
+    name: name.trim() || `Сценарий ${entries.length + 1}`,
+    savedAt: new Date().toISOString(),
+    state,
+  };
+  writeLibrary([entry, ...entries].slice(0, 20));
+  return entry;
+}
+
+export function deleteNamedScenario(id) {
+  writeLibrary(readLibrary().filter((entry) => entry.id !== id));
+}
+
+export function loadNamedScenario(id) {
+  return readLibrary().find((entry) => entry.id === id)?.state ?? null;
+}
+
+export function decodeScenarioFromParam(encoded) {
+  return decodeScenarioState(encoded);
 }
