@@ -1,13 +1,15 @@
 import React, { useState } from 'react';
 import { Button, FormGroup, Input, Label, Modal, ModalBody, ModalFooter, ModalHeader } from 'reactstrap';
 import { parsePositionsCsv } from '../utils/csvImport';
+import { useLocale } from '../i18n/LocaleContext';
 
 const CsvImportModal = ({ isOpen, toggle, onImport }) => {
+  const { locale, t } = useLocale();
   const [text, setText] = useState('');
   const [error, setError] = useState('');
 
   const handleImport = () => {
-    const result = parsePositionsCsv(text);
+    const result = parsePositionsCsv(text, locale);
     if (!result.ok) {
       setError(result.error);
       return;
@@ -21,14 +23,11 @@ const CsvImportModal = ({ isOpen, toggle, onImport }) => {
 
   return (
     <Modal isOpen={isOpen} toggle={toggle} size="lg">
-      <ModalHeader toggle={toggle}>Импорт позиций из CSV</ModalHeader>
+      <ModalHeader toggle={toggle}>{t('csv.title')}</ModalHeader>
       <ModalBody>
-        <p>
-          Вставьте CSV с колонками <code>класс, сумма, валюта</code> или экспорт брокера
-          (Tinkoff и др.). Классы: акции, облигации, наличные.
-        </p>
+        <p>{t('csv.description')}</p>
         <FormGroup>
-          <Label for="csvText">Данные CSV</Label>
+          <Label for="csvText">{t('csv.data')}</Label>
           <Input
             id="csvText"
             type="textarea"
@@ -45,10 +44,10 @@ const CsvImportModal = ({ isOpen, toggle, onImport }) => {
       </ModalBody>
       <ModalFooter>
         <Button color="secondary" onClick={toggle}>
-          Отмена
+          {t('csv.cancel')}
         </Button>
         <Button color="primary" onClick={handleImport} disabled={!text.trim()}>
-          Импортировать
+          {t('csv.import')}
         </Button>
       </ModalFooter>
     </Modal>

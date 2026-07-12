@@ -11,6 +11,7 @@ import {
   setFxRates,
 } from '../utils/portfolioFormUtils';
 import { fetchRates } from '../api/portfolioApi';
+import { useLocale } from '../i18n/LocaleContext';
 
 function summarizeScenario(scenario) {
   if (!scenario) {
@@ -35,12 +36,12 @@ function summarizeScenario(scenario) {
   };
 }
 
-function ScenarioCard({ title, summary }) {
+function ScenarioCard({ title, summary, t }) {
   if (!summary) {
     return (
       <div className="compare-card compare-card--empty">
         <h3>{title}</h3>
-        <p>Сценарий не найден.</p>
+        <p>{t('compare.notFound')}</p>
       </div>
     );
   }
@@ -50,33 +51,33 @@ function ScenarioCard({ title, summary }) {
       <h3>{title}</h3>
       <dl className="compare-card__metrics">
         <div>
-          <dt>Целевая пропорция</dt>
+          <dt>{t('compare.targetRatio')}</dt>
           <dd>{summary.ratio}</dd>
         </div>
         <div>
-          <dt>Режим</dt>
-          <dd>{summary.mode}</dd>
+          <dt>{t('compare.mode')}</dt>
+          <dd>{t(`mode.${summary.mode}`)}</dd>
         </div>
         <div>
-          <dt>Текущие акции</dt>
+          <dt>{t('compare.currentStocks')}</dt>
           <dd>{summary.allocation.currentStockPct}%</dd>
         </div>
         <div>
-          <dt>Текущие облигации</dt>
+          <dt>{t('compare.currentBonds')}</dt>
           <dd>{summary.allocation.currentBondPct}%</dd>
         </div>
         {summary.allocation.currentCashPct > 0 && (
           <div>
-            <dt>Наличные</dt>
+            <dt>{t('asset.cash')}</dt>
             <dd>{summary.allocation.currentCashPct}%</dd>
           </div>
         )}
         <div>
-          <dt>Позиций</dt>
+          <dt>{t('compare.positions')}</dt>
           <dd>{summary.positions}</dd>
         </div>
         <div>
-          <dt>Взнос</dt>
+          <dt>{t('compare.contribution')}</dt>
           <dd>
             {summary.contribution} {summary.contributionCurrency}
           </dd>
@@ -87,6 +88,7 @@ function ScenarioCard({ title, summary }) {
 }
 
 const CompareScenarios = () => {
+  const { t } = useLocale();
   const currentDraft = loadDraftState();
   const [leftParam, setLeftParam] = useState('');
   const [rightParam, setRightParam] = useState('');
@@ -99,9 +101,9 @@ const CompareScenarios = () => {
         setRatesError(null);
       })
       .catch((error) => {
-        setRatesError(error.summary ?? 'Не удалось загрузить курсы для сравнения.');
+        setRatesError(error.summary ?? t('error.ratesCompare'));
       });
-  }, []);
+  }, [t]);
 
   const leftScenario = useMemo(() => {
     if (leftParam) {
@@ -123,34 +125,32 @@ const CompareScenarios = () => {
   return (
     <div className="calculator-card">
       <header className="calculator-card__header">
-        <span className="calculator-card__eyebrow">Сравнение</span>
-        <h1 className="calculator-card__title">Сравнение сценариев</h1>
-        <p className="calculator-card__subtitle">
-          Вставьте параметры `scenario` из двух ссылок, чтобы сравнить целевые и текущие доли.
-        </p>
+        <span className="calculator-card__eyebrow">{t('compare.eyebrow')}</span>
+        <h1 className="calculator-card__title">{t('compare.title')}</h1>
+        <p className="calculator-card__subtitle">{t('compare.subtitle')}</p>
       </header>
 
       {ratesError && <Alert color="warning">{ratesError}</Alert>}
 
       <div className="compare-inputs">
         <FormGroup>
-          <Label for="leftScenario">Сценарий A</Label>
+          <Label for="leftScenario">{t('compare.scenarioA')}</Label>
           <Input
             id="leftScenario"
             type="textarea"
             rows="3"
-            placeholder="Оставьте пустым, чтобы использовать текущий черновик"
+            placeholder={t('compare.leftPlaceholder')}
             value={leftParam}
             onChange={(e) => setLeftParam(e.target.value.trim())}
           />
         </FormGroup>
         <FormGroup>
-          <Label for="rightScenario">Сценарий B</Label>
+          <Label for="rightScenario">{t('compare.scenarioB')}</Label>
           <Input
             id="rightScenario"
             type="textarea"
             rows="3"
-            placeholder="Вставьте значение параметра scenario"
+            placeholder={t('compare.rightPlaceholder')}
             value={rightParam}
             onChange={(e) => setRightParam(e.target.value.trim())}
           />
@@ -158,19 +158,19 @@ const CompareScenarios = () => {
       </div>
 
       <div className="compare-grid">
-        <ScenarioCard title="Сценарий A" summary={leftSummary} />
-        <ScenarioCard title="Сценарий B" summary={rightSummary} />
+        <ScenarioCard title={t('compare.scenarioA')} summary={leftSummary} t={t} />
+        <ScenarioCard title={t('compare.scenarioB')} summary={rightSummary} t={t} />
       </div>
 
       {driftDelta != null && (
         <Alert color="info">
-          Разница в текущей доле акций между сценариями: {driftDelta} п.п.
+          {t('compare.delta', { value: driftDelta })}
         </Alert>
       )}
 
       <div className="form-actions">
         <Button tag={Link} to="/" color="secondary" outline>
-          Вернуться к калькулятору
+          {t('compare.back')}
         </Button>
       </div>
     </div>

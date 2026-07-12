@@ -1,3 +1,5 @@
+import { translate } from '../i18n/translations';
+
 export const currencyOptions = [
   { value: 'rub', text: '₽', locale: 'ru-RU' },
   { value: 'usd', text: '$', locale: 'en-US' },
@@ -18,9 +20,6 @@ export const DEFAULT_FX_RATES = { rub: 1, usd: 90, eur: 100 };
 
 let activeFxRates = { ...DEFAULT_FX_RATES };
 let activeFxMeta = null;
-
-export const BREAKDOWN_ESTIMATE_NOTE =
-  'Распределение по позициям рассчитано на сервере по текущим курсам.';
 
 export function setFxRates(ratesPerUnitInRub, metadata = null) {
   if (!ratesPerUnitInRub) {
@@ -45,33 +44,40 @@ export function getFxMeta() {
   return activeFxMeta;
 }
 
-export function formatFxDisclaimer(fxMeta = activeFxMeta) {
+export function formatFxDisclaimer(fxMeta = activeFxMeta, locale = 'ru') {
   if (!fxMeta) {
-    return 'Курсы валют ориентировочные и используются для предпросмотра до загрузки актуальных данных.';
+    return translate(locale, 'fx.preview');
   }
 
   const asOf = fxMeta.ratesAsOf
-    ? new Date(fxMeta.ratesAsOf).toLocaleDateString('ru-RU')
-    : 'неизвестно';
-  const staleSuffix = fxMeta.stale ? ' (устаревшие)' : '';
-  const cacheSuffix = fxMeta.fromCache ? ', из кэша' : '';
+    ? new Date(fxMeta.ratesAsOf).toLocaleDateString(locale === 'en' ? 'en-US' : 'ru-RU')
+    : translate(locale, 'fx.unknown');
+  const staleSuffix = fxMeta.stale ? translate(locale, 'fx.stale') : '';
+  const cacheSuffix = fxMeta.fromCache ? translate(locale, 'fx.cached') : '';
   const usd = fxMeta.ratesPerUnitInRub?.usd ?? activeFxRates.usd;
   const eur = fxMeta.ratesPerUnitInRub?.eur ?? activeFxRates.eur;
 
-  return `Курсы ${fxMeta.source} на ${asOf}${cacheSuffix}${staleSuffix}: 1$ ≈ ${formatAmount(usd, 'rub')}, 1€ ≈ ${formatAmount(eur, 'rub')}.`;
+  return translate(locale, 'fx.summary', {
+    source: fxMeta.source,
+    date: asOf,
+    cache: cacheSuffix,
+    stale: staleSuffix,
+    usd: formatAmount(usd, 'rub'),
+    eur: formatAmount(eur, 'rub'),
+  });
 }
 
-const FIELD_LABELS = {
-  ratio: 'Пропорция портфеля',
-  stockValues: 'Позиции в акциях',
-  stocksValues: 'Позиции в акциях',
-  bondValues: 'Позиции в облигациях',
-  bondsValues: 'Позиции в облигациях',
-  cashValues: 'Наличные',
-  contributionAmount: 'Сумма взноса',
-  mode: 'Режим расчёта',
-  driftThreshold: 'Допуск отклонения',
-  minTradeAmount: 'Минимальная сделка',
+const FIELD_LABEL_KEYS = {
+  ratio: 'field.ratio',
+  stockValues: 'field.stocks',
+  stocksValues: 'field.stocks',
+  bondValues: 'field.bonds',
+  bondsValues: 'field.bonds',
+  cashValues: 'field.cash',
+  contributionAmount: 'field.contribution',
+  mode: 'field.mode',
+  driftThreshold: 'field.driftThreshold',
+  minTradeAmount: 'field.minTrade',
 };
 
 const FIELD_KEYS = {
@@ -364,7 +370,7 @@ function normalizeErrorMessages(value) {
   return String(value);
 }
 
-export function parseApiFieldErrors(errorData) {
+export function parseApiFieldErrors(errorData, locale = 'ru') {
   const fieldErrors = {};
   const messages = [];
 
@@ -391,7 +397,8 @@ export function parseApiFieldErrors(errorData) {
       if (mapped) {
         fieldErrors[mapped] = normalizeErrorMessages(message);
       } else {
-        const label = FIELD_LABELS[field] ?? field;
+        const labelKey = FIELD_LABEL_KEYS[field];
+        const label = labelKey ? translate(locale, labelKey) : field;
         messages.push(`${label}: ${normalizeErrorMessages(message)}`);
       }
     });
@@ -403,8 +410,8 @@ export function parseApiFieldErrors(errorData) {
     messages.length > 0
       ? messages.join(' ')
       : Object.keys(fieldErrors).length > 0
-        ? 'Проверьте выделенные поля.'
-        : 'Не удалось выполнить расчёт. Проверьте введённые данные.';
+        ? translate(locale, 'error.checkFields')
+        : translate(locale, 'error.calculation');
 
   return { fieldErrors, summary };
 }

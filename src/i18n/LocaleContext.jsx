@@ -1,10 +1,10 @@
-import React, { createContext, useContext, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { detectLocale, saveLocale, translate } from './translations';
 
 const LocaleContext = createContext({
   locale: 'ru',
   setLocale: () => {},
-  t: (key) => key,
+  t: (key, params) => translate('ru', key, params),
 });
 
 export function LocaleProvider({ children }) {
@@ -15,11 +15,16 @@ export function LocaleProvider({ children }) {
     saveLocale(nextLocale);
   };
 
+  useEffect(() => {
+    document.documentElement.lang = locale;
+    document.title = translate(locale, 'app.title');
+  }, [locale]);
+
   const value = useMemo(
     () => ({
       locale,
       setLocale,
-      t: (key) => translate(locale, key),
+      t: (key, params) => translate(locale, key, params),
     }),
     [locale],
   );

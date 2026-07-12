@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { Button, FormGroup, Input, Label } from 'reactstrap';
 import { computeGlidePathRatio, computeYearsToGoalRatio } from '../utils/glidePath';
+import { useLocale } from '../i18n/LocaleContext';
 
 const GlidePathPanel = ({ onApplyRatio }) => {
+  const { t } = useLocale();
   const [mode, setMode] = useState('age');
   const [currentAge, setCurrentAge] = useState('35');
   const [retirementAge, setRetirementAge] = useState('65');
@@ -24,17 +26,17 @@ const GlidePathPanel = ({ onApplyRatio }) => {
 
   return (
     <div className="glide-path">
-      <h3 className="glide-path__title">Glide path (целевая пропорция по горизонту)</h3>
+      <h3 className="glide-path__title">{t('glide.title')}</h3>
       <FormGroup>
         <Input type="select" value={mode} onChange={(e) => setMode(e.target.value)}>
-          <option value="age">По возрасту до пенсии</option>
-          <option value="goal">По годам до цели</option>
+          <option value="age">{t('glide.byAge')}</option>
+          <option value="goal">{t('glide.byGoal')}</option>
         </Input>
       </FormGroup>
       {mode === 'age' ? (
         <div className="glide-path__inputs">
           <FormGroup>
-            <Label for="currentAge">Текущий возраст</Label>
+            <Label for="currentAge">{t('glide.currentAge')}</Label>
             <Input
               id="currentAge"
               type="number"
@@ -45,7 +47,7 @@ const GlidePathPanel = ({ onApplyRatio }) => {
             />
           </FormGroup>
           <FormGroup>
-            <Label for="retirementAge">Возраст выхода на пенсию</Label>
+            <Label for="retirementAge">{t('glide.retirementAge')}</Label>
             <Input
               id="retirementAge"
               type="number"
@@ -58,7 +60,7 @@ const GlidePathPanel = ({ onApplyRatio }) => {
         </div>
       ) : (
         <FormGroup>
-          <Label for="yearsToGoal">Лет до цели</Label>
+          <Label for="yearsToGoal">{t('glide.yearsToGoal')}</Label>
           <Input
             id="yearsToGoal"
             type="number"
@@ -70,7 +72,7 @@ const GlidePathPanel = ({ onApplyRatio }) => {
         </FormGroup>
       )}
       <Button type="button" color="secondary" outline onClick={handleApply}>
-        Применить пропорцию
+        {t('glide.apply')}
       </Button>
     </div>
   );

@@ -1,3 +1,5 @@
+import { translate } from '../i18n/translations';
+
 const STORAGE_KEY = 'portfolio-balancer:draft:v1';
 const LIBRARY_KEY = 'portfolio-balancer:library:v1';
 const SCENARIO_PARAM = 'scenario';
@@ -122,12 +124,14 @@ export function listNamedScenarios() {
   return readLibrary();
 }
 
-export function saveNamedScenario(name, state) {
+export function saveNamedScenario(name, state, locale = 'ru') {
   const entries = readLibrary();
   const id = crypto.randomUUID?.() ?? `scenario-${Date.now()}`;
   const entry = {
     id,
-    name: name.trim() || `Сценарий ${entries.length + 1}`,
+    name:
+      name.trim() ||
+      translate(locale, 'library.defaultName', { number: entries.length + 1 }),
     savedAt: new Date().toISOString(),
     state,
   };

@@ -1,4 +1,5 @@
 import { parseBrokerCsv } from './brokerCsvParsers';
+import { translate } from '../i18n/translations';
 
 const CLASS_ALIASES = {
   stock: 'stocks',
@@ -70,14 +71,14 @@ function pushPosition(assets, assetClass, value, currency) {
   }
 }
 
-export function parsePositionsCsv(text) {
+export function parsePositionsCsv(text, locale = 'ru') {
   const lines = text
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
 
   if (lines.length === 0) {
-    return { ok: false, error: 'Файл пуст.' };
+    return { ok: false, error: translate(locale, 'csv.empty') };
   }
 
   const delimiter = detectDelimiter(lines[0]);
@@ -87,7 +88,7 @@ export function parsePositionsCsv(text) {
   );
 
   if (hasStandardHeader) {
-    return parseStandardCsv(lines, delimiter, header);
+    return parseStandardCsv(lines, delimiter, header, locale);
   }
 
   const brokerResult = parseBrokerCsv(text);
@@ -95,10 +96,10 @@ export function parsePositionsCsv(text) {
     return brokerResult;
   }
 
-  return parseStandardCsv(lines, delimiter, header);
+  return parseStandardCsv(lines, delimiter, header, locale);
 }
 
-function parseStandardCsv(lines, delimiter, header) {
+function parseStandardCsv(lines, delimiter, header, locale) {
   const hasHeader = header.some((cell) =>
     ['class', 'type', 'класс', 'тип', 'asset', 'актив'].includes(cell),
   );
@@ -153,8 +154,7 @@ function parseStandardCsv(lines, delimiter, header) {
   if (total === 0) {
     return {
       ok: false,
-      error:
-        'Не удалось распознать позиции. Используйте столбцы: класс, сумма, валюта (акции/облигации/наличные).',
+      error: translate(locale, 'csv.unrecognized'),
     };
   }
 

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import { parseApiFieldErrors } from '../utils/portfolioFormUtils';
+import { translate } from '../i18n/translations';
 
 const REQUEST_TIMEOUT_MS = 15000;
 
@@ -16,16 +17,14 @@ export const ERROR_CODES = {
   network: 'network',
 };
 
-const ERROR_MESSAGES = {
-  [ERROR_CODES.ratesUnavailable]:
-    'Курсы валют временно недоступны. Попробуйте позже.',
-  [ERROR_CODES.timeout]:
-    'Сервер не ответил вовремя. Проверьте соединение и попробуйте снова.',
-  [ERROR_CODES.config]:
-    'Не настроен адрес API. Укажите VITE_API_BASE_URL при сборке приложения.',
-  [ERROR_CODES.network]:
-    'Не удалось связаться с сервером. Попробуйте позже.',
+const ERROR_MESSAGE_KEYS = {
+  [ERROR_CODES.ratesUnavailable]: 'error.ratesUnavailable',
+  [ERROR_CODES.timeout]: 'error.timeout',
+  [ERROR_CODES.config]: 'error.apiConfig',
+  [ERROR_CODES.network]: 'error.network',
 };
+
+const errorMessage = (code, locale) => translate(locale, ERROR_MESSAGE_KEYS[code]);
 
 export function getApiBaseUrl() {
   const baseUrl = import.meta.env.VITE_API_BASE_URL;
@@ -35,11 +34,11 @@ export function getApiBaseUrl() {
   return baseUrl.replace(/\/$/, '');
 }
 
-export function mapApiError(error) {
+export function mapApiError(error, locale = 'ru') {
   if (!getApiBaseUrl()) {
     return {
       code: ERROR_CODES.config,
-      summary: ERROR_MESSAGES[ERROR_CODES.config],
+      summary: errorMessage(ERROR_CODES.config, locale),
       fieldErrors: {},
     };
   }
@@ -47,7 +46,7 @@ export function mapApiError(error) {
   if (error.code === 'ECONNABORTED') {
     return {
       code: ERROR_CODES.timeout,
-      summary: ERROR_MESSAGES[ERROR_CODES.timeout],
+      summary: errorMessage(ERROR_CODES.timeout, locale),
       fieldErrors: {},
     };
   }
@@ -56,7 +55,7 @@ export function mapApiError(error) {
   const data = error.response?.data;
 
   if (status === 400) {
-    const { fieldErrors, summary } = parseApiFieldErrors(data);
+    const { fieldErrors, summary } = parseApiFieldErrors(data, locale);
     return {
       code: ERROR_CODES.validation,
       summary,
@@ -67,14 +66,14 @@ export function mapApiError(error) {
   if (status === 503) {
     return {
       code: ERROR_CODES.ratesUnavailable,
-      summary: data?.detail || data?.title || ERROR_MESSAGES[ERROR_CODES.ratesUnavailable],
+      summary: errorMessage(ERROR_CODES.ratesUnavailable, locale),
       fieldErrors: {},
     };
   }
 
   return {
     code: ERROR_CODES.network,
-    summary: ERROR_MESSAGES[ERROR_CODES.network],
+    summary: errorMessage(ERROR_CODES.network, locale),
     fieldErrors: {},
   };
 }
@@ -92,10 +91,10 @@ function createClient() {
   });
 }
 
-export async function fetchRates() {
+export async function fetchRates(locale = 'ru') {
   const client = createClient();
   if (!client) {
-    throw Object.assign(new Error(ERROR_MESSAGES[ERROR_CODES.config]), {
+    throw Object.assign(new Error(errorMessage(ERROR_CODES.config, locale)), {
       code: ERROR_CODES.config,
     });
   }
@@ -104,14 +103,14 @@ export async function fetchRates() {
     const response = await client.get('/portfolio/rates');
     return response.data;
   } catch (error) {
-    throw mapApiError(error);
+    throw mapApiError(error, locale);
   }
 }
 
-export async function calculatePortfolio(payload) {
+export async function calculatePortfolio(payload, locale = 'ru') {
   const client = createClient();
   if (!client) {
-    throw Object.assign(new Error(ERROR_MESSAGES[ERROR_CODES.config]), {
+    throw Object.assign(new Error(errorMessage(ERROR_CODES.config, locale)), {
       code: ERROR_CODES.config,
     });
   }
@@ -120,7 +119,7 @@ export async function calculatePortfolio(payload) {
     const response = await client.post('/portfolio/calculate', payload);
     return response.data;
   } catch (error) {
-    throw mapApiError(error);
+    throw mapApiError(error, locale);
   }
 }
 

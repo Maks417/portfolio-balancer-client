@@ -1,57 +1,49 @@
 import { formatSignedAmount } from './portfolioFormUtils';
+import { translate } from '../i18n/translations';
 
-function formatBreakdownRows(title, rows) {
-  if (!rows?.length) {
-    return [];
-  }
-  return rows.flatMap((row, index) => [
-    `${title} позиция ${index + 1}`,
-    formatSignedAmount(row.amount, row.currency, row.isSell),
-  ]);
-}
-
-export function buildResultText(result) {
-  const lines = ['Результат балансировки портфеля', ''];
+export function buildResultText(result, locale = 'ru') {
+  const t = (key, params) => translate(locale, key, params);
+  const lines = [t('export.title'), ''];
 
   if (result.stocksAmount != null) {
     lines.push(
-      `Акции: ${formatSignedAmount(result.stocksAmount, result.currency, result.stocksAmount < 0)}`,
+      `${t('asset.stocks')}: ${formatSignedAmount(result.stocksAmount, result.currency, result.stocksAmount < 0)}`,
     );
   }
   if (result.bondsAmount != null) {
     lines.push(
-      `Облигации: ${formatSignedAmount(result.bondsAmount, result.currency, result.bondsAmount < 0)}`,
+      `${t('asset.bonds')}: ${formatSignedAmount(result.bondsAmount, result.currency, result.bondsAmount < 0)}`,
     );
   }
   if (result.cashAmount != null) {
     lines.push(
-      `Наличные: ${formatSignedAmount(result.cashAmount, result.currency, result.cashAmount < 0)}`,
+      `${t('asset.cash')}: ${formatSignedAmount(result.cashAmount, result.currency, result.cashAmount < 0)}`,
     );
   }
 
   if (result.stocksBreakdown?.length) {
-    lines.push('', 'Акции по позициям:');
+    lines.push('', t('export.stocksBreakdown'));
     result.stocksBreakdown.forEach((row, index) => {
       lines.push(
-        `  Позиция ${index + 1}: ${formatSignedAmount(row.amount, row.currency, row.isSell)}`,
+        `  ${t('asset.position', { number: index + 1 })}: ${formatSignedAmount(row.amount, row.currency, row.isSell)}`,
       );
     });
   }
 
   if (result.bondsBreakdown?.length) {
-    lines.push('', 'Облигации по позициям:');
+    lines.push('', t('export.bondsBreakdown'));
     result.bondsBreakdown.forEach((row, index) => {
       lines.push(
-        `  Позиция ${index + 1}: ${formatSignedAmount(row.amount, row.currency, row.isSell)}`,
+        `  ${t('asset.position', { number: index + 1 })}: ${formatSignedAmount(row.amount, row.currency, row.isSell)}`,
       );
     });
   }
 
   if (result.cashBreakdown?.length) {
-    lines.push('', 'Наличные по позициям:');
+    lines.push('', t('export.cashBreakdown'));
     result.cashBreakdown.forEach((row, index) => {
       lines.push(
-        `  Позиция ${index + 1}: ${formatSignedAmount(row.amount, row.currency, row.isSell)}`,
+        `  ${t('asset.position', { number: index + 1 })}: ${formatSignedAmount(row.amount, row.currency, row.isSell)}`,
       );
     });
   }
@@ -69,36 +61,43 @@ export function buildResultText(result) {
   return lines.join('\n');
 }
 
-export function buildResultCsv(result) {
-  const rows = [['Класс', 'Позиция', 'Сумма', 'Валюта', 'Операция']];
+export function buildResultCsv(result, locale = 'ru') {
+  const t = (key, params) => translate(locale, key, params);
+  const rows = [[
+    t('export.csvClass'),
+    t('export.csvPosition'),
+    t('export.csvAmount'),
+    t('export.csvCurrency'),
+    t('export.csvOperation'),
+  ]];
 
   const addClassRow = (className, amount, currency) => {
     if (amount == null) {
       return;
     }
-    const operation = amount < 0 ? 'продажа' : 'покупка';
-    rows.push([className, 'Итого', Math.abs(amount).toFixed(2), currency, operation]);
+    const operation = amount < 0 ? t('export.sell') : t('export.buy');
+    rows.push([className, t('export.total'), Math.abs(amount).toFixed(2), currency, operation]);
   };
 
-  addClassRow('Акции', result.stocksAmount, result.currency);
-  addClassRow('Облигации', result.bondsAmount, result.currency);
-  addClassRow('Наличные', result.cashAmount, result.currency);
+  addClassRow(t('asset.stocks'), result.stocksAmount, result.currency);
+  addClassRow(t('asset.bonds'), result.bondsAmount, result.currency);
+  addClassRow(t('asset.cash'), result.cashAmount, result.currency);
 
   const addBreakdown = (className, breakdown) => {
     breakdown?.forEach((row, index) => {
       rows.push([
         className,
-        `Позиция ${index + 1}`,
+        t('asset.position', { number: index + 1 }),
         Math.abs(row.amount).toFixed(2),
         row.currency,
-        row.isSell || row.amount < 0 ? 'продажа' : 'покупка',
+        row.isSell || row.amount < 0 ? t('export.sell') : t('export.buy'),
       ]);
     });
   };
 
-  addBreakdown('Акции', result.stocksBreakdown);
-  addBreakdown('Облигации', result.bondsBreakdown);
-  addBreakdown('Наличные', result.cashBreakdown);
+  addBreakdown(t('asset.stocks'), result.stocksBreakdown);
+  addBreakdown(t('asset.bonds'), result.bondsBreakdown);
+  addBreakdown(t('asset.cash'), result.cashBreakdown);
 
   return rows.map((row) => row.map(escapeCsvCell).join(',')).join('\n');
 }

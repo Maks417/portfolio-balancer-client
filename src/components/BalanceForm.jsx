@@ -19,7 +19,6 @@ import {
 } from '../api/portfolioApi';
 import {
   ALLOCATION_PRESETS,
-  BREAKDOWN_ESTIMATE_NOTE,
   buildCalculatePayload,
   currencyOptions,
   formatAmount,
@@ -84,6 +83,29 @@ function applyScenarioState(scenario) {
   };
 }
 
+function localizeServerNote(note, locale, t) {
+  if (!note || locale !== 'en') {
+    return note;
+  }
+
+  const tolerance = note.match(/допуска\s+([\d.,]+)%/i);
+  if (tolerance) {
+    return t('result.toleranceWithin', { value: tolerance[1].replace(',', '.') });
+  }
+
+  if (note.includes('портфель перевешен')) {
+    const assets = [];
+    if (note.includes('акций')) assets.push(t('asset.stocks').toLowerCase());
+    if (note.includes('облигаций')) assets.push(t('asset.bonds').toLowerCase());
+    if (note.includes('наличных')) assets.push(t('asset.cash').toLowerCase());
+    return t('result.contributionOverweight', {
+      assets: new Intl.ListFormat('en', { style: 'long', type: 'conjunction' }).format(assets),
+    });
+  }
+
+  return note;
+}
+
 const BalanceForm = () => {
   const { locale, setLocale, t } = useLocale();
   const resultRef = useRef(null);
@@ -108,7 +130,7 @@ const BalanceForm = () => {
   const [exportMessage, setExportMessage] = useState('');
   const [importOpen, setImportOpen] = useState(false);
   const [libraryOpen, setLibraryOpen] = useState(false);
-  const [configError, setConfigError] = useState(getApiBaseUrl() ? null : 'API не настроен');
+  const configError = getApiBaseUrl() ? null : t('error.apiNotConfigured');
 
   const ratioParts = getRatioParts(ratio.text);
   const showCurrencyWarning = hasMixedCurrencies(
@@ -127,6 +149,9 @@ const BalanceForm = () => {
   const isRebalanceMode = calculationMode === CALCULATION_MODES.rebalance;
 
   const isSuccess = result?.type === 'success';
+  const localizedContributionNote = localizeServerNote(result?.contributionOnlyNote, locale, t);
+  const localizedToleranceNote = localizeServerNote(result?.toleranceNote, locale, t);
+  const localizedFxDisclaimer = isSuccess ? formatFxDisclaimer(result.fx, locale) : '';
   const resultTotal = isSuccess
     ? Math.abs(result.stocksAmount ?? 0) + Math.abs(result.bondsAmount ?? 0)
     : 0;
@@ -147,24 +172,24 @@ const BalanceForm = () => {
   useEffect(() => {
     let cancelled = false;
 
-    fetchRates()
+    fetchRates(locale)
       .then((rates) => {
         if (cancelled) {
           return;
         }
         setFxRates(rates.ratesPerUnitInRub, rates);
-        setRatesError(rates.stale ? 'Используются устаревшие курсы валют.' : null);
+        setRatesError(rates.stale ? t('error.ratesStale') : null);
       })
       .catch((error) => {
         if (!cancelled) {
-          setRatesError(error.summary ?? 'Не удалось загрузить курсы валют для предпросмотра.');
+          setRatesError(error.summary ?? t('error.ratesPreview'));
         }
       });
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [locale, t]);
 
   useEffect(() => {
     if (readScenarioFromUrl()) {
@@ -241,8 +266,7 @@ const BalanceForm = () => {
     const errors = {};
 
     if (ratioValidClass !== 'is-valid') {
-      errors.ratio =
-        'Значение пропорции должно быть 100, 0 или дробное (например, 50/50).';
+      errors.ratio = t('error.invalidRatio');
     }
 
     if (
@@ -250,14 +274,14 @@ const BalanceForm = () => {
       !hasFilledPosition(assets.bondsValues) &&
       !hasFilledPosition(assets.cashValues)
     ) {
-      errors.stocks = 'Укажите хотя бы одну позицию в акциях, облигациях или наличных.';
+      errors.stocks = t('error.noPositions');
       errors.bonds = errors.stocks;
     }
 
     if (!isRebalanceMode) {
       const amount = Number(contributionAmount.value);
       if (contributionAmount.value === '' || Number.isNaN(amount) || amount <= 0) {
-        errors.contribution = 'Введите сумму взноса больше 0.';
+        errors.contribution = t('error.invalidContribution');
       }
     }
 
@@ -292,7 +316,7 @@ const BalanceForm = () => {
         driftThreshold,
         minTradeAmount,
       });
-      const response = await calculatePortfolio(payload);
+      const response = await calculatePortfolio(payload, locale);
       const currency = response.currency ?? contributionAmount.currency;
       const stocksAmount = normalizeDiffAmount(response.stocksDiff);
       const bondsAmount = normalizeDiffAmount(response.bondsDiff);
@@ -311,7 +335,7 @@ const BalanceForm = () => {
         mode: response.mode ?? calculationMode,
         contributionOnlyNote: response.contributionOnlyNote,
         toleranceNote: response.toleranceNote,
-        fxDisclaimer: formatFxDisclaimer(response.fx),
+        fx: response.fx,
         stocksBreakdown: mapServerBreakdown(response.stocksBreakdown),
         bondsBreakdown: mapServerBreakdown(response.bondsBreakdown),
         cashBreakdown: mapServerBreakdown(response.cashBreakdown),
@@ -349,7 +373,7 @@ const BalanceForm = () => {
 
     try {
       await navigator.clipboard.writeText(url);
-      setShareMessage('Ссылка на сценарий скопирована в буфер обмена.');
+      setShareMessage(t('message.shareCopied'));
     } catch {
       setShareMessage(url);
     }
@@ -405,10 +429,15 @@ const BalanceForm = () => {
       return;
     }
     try {
-      await copyTextToClipboard(buildResultText(result));
-      setExportMessage('Результат скопирован в буфер обмена.');
+      await copyTextToClipboard(buildResultText({
+        ...result,
+        contributionOnlyNote: localizedContributionNote,
+        toleranceNote: localizedToleranceNote,
+        fxDisclaimer: localizedFxDisclaimer,
+      }, locale));
+      setExportMessage(t('message.resultCopied'));
     } catch {
-      setExportMessage('Не удалось скопировать результат.');
+      setExportMessage(t('message.resultCopyFailed'));
     }
   };
 
@@ -416,8 +445,8 @@ const BalanceForm = () => {
     if (!result || result.type !== 'success') {
       return;
     }
-    downloadCsv(buildResultCsv(result));
-    setExportMessage('CSV загружен.');
+    downloadCsv(buildResultCsv(result, locale));
+    setExportMessage(t('message.csvDownloaded'));
   };
 
   const handleApplyGlidePath = ({ ratioText, sliderValue }) => {
@@ -455,12 +484,12 @@ const BalanceForm = () => {
   const renderAssetClass = (name, labelId, valuesArr, fieldErrorKey, totalBase) => {
     const isStocks = name === 'stocksValues';
     const isCash = name === 'cashValues';
-    const label = isStocks ? 'Акции' : isCash ? 'Наличные' : 'Облигации';
+    const label = isStocks ? t('asset.stocks') : isCash ? t('asset.cash') : t('asset.bonds');
     const description = isStocks
-      ? 'Стоимость каждой позиции в акциях'
+      ? t('asset.stocksHint')
       : isCash
-        ? 'Свободные средства и депозиты'
-        : 'Стоимость каждой позиции в облигациях';
+        ? t('asset.cashHint')
+        : t('asset.bondsHint');
     const modifier = isStocks ? 'stock' : isCash ? 'cash' : 'bond';
 
     return (
@@ -480,7 +509,7 @@ const BalanceForm = () => {
               <Button
                 type="button"
                 className="number-field minus"
-                aria-label={`Удалить позицию ${index + 1}`}
+                aria-label={t('asset.removePosition', { number: index + 1 })}
                 onClick={() => removeValueField(index, name, valuesArr)}
               >
                 <i className="fa fa-minus" aria-hidden="true" />
@@ -496,7 +525,7 @@ const BalanceForm = () => {
               name={`${name}_value_${index}`}
               id={index === 0 ? labelId : undefined}
               value={element.value}
-              placeholder={`Позиция ${index + 1}`}
+              placeholder={t('asset.position', { number: index + 1 })}
               invalid={Boolean(fieldError(fieldErrorKey))}
               onChange={(e) => handleValues(index, e, name, valuesArr)}
             />
@@ -504,7 +533,7 @@ const BalanceForm = () => {
               className: 'position-row__currency number-field',
               name: `${name}_currency_${index}`,
               value: element.currency,
-              ariaLabel: `Валюта позиции ${index + 1}`,
+              ariaLabel: t('asset.positionCurrency', { number: index + 1 }),
               onChange: (e) => handleValues(index, e, name, valuesArr),
             })}
           </div>
@@ -515,7 +544,7 @@ const BalanceForm = () => {
           onClick={(e) => addValueField(e, name, valuesArr)}
         >
           <i className="fa fa-plus me-2" aria-hidden="true" />
-          Добавить позицию
+          {t('asset.addPosition')}
         </Button>
         {fieldError(fieldErrorKey) && (
           <FormFeedback className="d-block">{fieldError(fieldErrorKey)}</FormFeedback>
@@ -532,7 +561,7 @@ const BalanceForm = () => {
         </h4>
         {rows.map((row, index) => (
           <div className="result-breakdown__row" key={`${modifier}-buy-${index}`}>
-            <span>Позиция {index + 1}</span>
+            <span>{t('asset.position', { number: index + 1 })}</span>
             <span className={`result-breakdown__amount result-breakdown__amount--${modifier}`}>
               {formatSignedAmount(row.amount, row.currency, row.isSell)}
             </span>
@@ -545,7 +574,7 @@ const BalanceForm = () => {
     <div className="calculator-card">
       <header className="calculator-card__header">
         <div className="calculator-card__header-row">
-          <span className="calculator-card__eyebrow">Финансовый калькулятор</span>
+          <span className="calculator-card__eyebrow">{t('app.eyebrow')}</span>
           <FormGroup className="locale-switcher mb-0">
             <Label for="locale" className="visually-hidden">
               {t('locale.label')}
@@ -586,8 +615,8 @@ const BalanceForm = () => {
           <h2 className="form-section__title" id="section-mode">
             <span className="form-section__number">1</span>
             <span>
-              Режим расчёта
-              <small>Взнос или полная балансировка</small>
+              {t('mode.title')}
+              <small>{t('mode.subtitle')}</small>
             </span>
           </h2>
           <FormGroup className="form-group">
@@ -601,8 +630,8 @@ const BalanceForm = () => {
             </Input>
             <FormText>
               {isRebalanceMode
-                ? 'Режим показывает покупки и продажи для достижения целевой пропорции без обязательного взноса.'
-                : 'Режим распределяет только новый взнос между классами активов.'}
+                ? t('mode.rebalanceHint')
+                : t('mode.contributionHint')}
             </FormText>
           </FormGroup>
         </section>
@@ -611,24 +640,24 @@ const BalanceForm = () => {
           <h2 className="form-section__title" id="section-ratio">
             <span className="form-section__number">2</span>
             <span>
-              Целевая пропорция
-              <small>Настройте желаемый баланс портфеля</small>
+              {t('ratio.title')}
+              <small>{t('ratio.subtitle')}</small>
             </span>
           </h2>
           <FormGroup className="form-group">
-            <Label for="ratio">Пропорция портфеля (акции/облигации, %)</Label>
+            <Label for="ratio">{t('ratio.label')}</Label>
             <div className="ratio-tiles" aria-live="polite">
               <div className="ratio-tile ratio-tile--stock">
-                <span className="ratio-tile__label">Акции</span>
+                <span className="ratio-tile__label">{t('asset.stocks')}</span>
                 <span className="ratio-tile__value">{ratioParts.stocks}%</span>
               </div>
               <div className="ratio-tile ratio-tile--bond">
-                <span className="ratio-tile__label">Облигации</span>
+                <span className="ratio-tile__label">{t('asset.bonds')}</span>
                 <span className="ratio-tile__value">{ratioParts.bonds}%</span>
               </div>
               {ratioParts.cash > 0 && (
                 <div className="ratio-tile ratio-tile--cash">
-                  <span className="ratio-tile__label">Наличные</span>
+                  <span className="ratio-tile__label">{t('asset.cash')}</span>
                   <span className="ratio-tile__value">{ratioParts.cash}%</span>
                 </div>
               )}
@@ -655,8 +684,7 @@ const BalanceForm = () => {
               onChange={validateRatio}
             />
             <FormText className="ratio-helper">
-              Введите 100 (только акции), 0 (только облигации), дробь 70/30 или 60/30/10
-              (акции/облигации/наличные), где сумма равна 100.
+              {t('ratio.helper')}
             </FormText>
             <div className="preset-row">
               {ALLOCATION_PRESETS.map((preset) => (
@@ -668,7 +696,11 @@ const BalanceForm = () => {
                   outline
                   onClick={() => handleApplyPreset(preset)}
                 >
-                  {preset.label}
+                  {preset.ratio === '100'
+                    ? t('ratio.presetStocks')
+                    : preset.ratio === '0'
+                      ? t('ratio.presetBonds')
+                      : preset.label}
                 </Button>
               ))}
             </div>
@@ -682,13 +714,18 @@ const BalanceForm = () => {
         {allocation.hasPositions && (
           <div className="distribution" aria-live="polite">
             <div className="distribution__header">
-              <span className="distribution__title">Текущее распределение</span>
-              <span className="distribution__drift">Отклонение {drift}%</span>
+              <span className="distribution__title">{t('allocation.current')}</span>
+              <span className="distribution__drift">
+                {t('allocation.drift', { value: drift })}
+              </span>
             </div>
             <div
               className="distribution__bar"
               role="img"
-              aria-label={`Акции ${allocation.currentStockPct}%, облигации ${allocation.currentBondPct}%`}
+              aria-label={t('allocation.aria', {
+                stocks: allocation.currentStockPct,
+                bonds: allocation.currentBondPct,
+              })}
             >
               <span
                 className="distribution__segment distribution__segment--stock"
@@ -697,16 +734,17 @@ const BalanceForm = () => {
               <span className="distribution__segment distribution__segment--bond" />
             </div>
             <div className="distribution__legend">
-              <span>Акции {allocation.currentStockPct}%</span>
+              <span>{t('asset.stocks')} {allocation.currentStockPct}%</span>
               <span>
-                Цель {ratioParts.stocks}/{ratioParts.bonds}
+                {t('allocation.target', {
+                  value: `${ratioParts.stocks}/${ratioParts.bonds}`,
+                })}
               </span>
-              <span>Облигации {allocation.currentBondPct}%</span>
+              <span>{t('asset.bonds')} {allocation.currentBondPct}%</span>
             </div>
             {allocation.isDriftHigh(ratioParts.stocks) && !isRebalanceMode && (
               <p className="distribution__note">
-                Отклонение от цели более 10%. Только взнос может не хватить для точной
-                балансировки — рассмотрите режим полной балансировки.
+                {t('allocation.highDrift')}
               </p>
             )}
           </div>
@@ -716,14 +754,14 @@ const BalanceForm = () => {
           <h2 className="form-section__title" id="section-portfolio">
             <span className="form-section__number">3</span>
             <span>
-              Текущий портфель
-              <small>Добавьте позиции по классам активов</small>
+              {t('portfolio.title')}
+              <small>{t('portfolio.subtitle')}</small>
             </span>
           </h2>
           {showCurrencyWarning && (
             <Alert color="warning" className="currency-warning">
               <i className="fa fa-triangle-exclamation me-2" aria-hidden="true" />
-              Позиции указаны в разных валютах. Конвертация выполняется на сервере.
+              {t('portfolio.mixedCurrencies')}
             </Alert>
           )}
           <div className="portfolio-classes">
@@ -762,13 +800,13 @@ const BalanceForm = () => {
           <h2 className="form-section__title" id="section-advanced">
             <span className="form-section__number">4</span>
             <span>
-              Дополнительные параметры
-              <small>Допуск отклонения и минимальный размер сделки</small>
+              {t('advanced.title')}
+              <small>{t('advanced.subtitle')}</small>
             </span>
           </h2>
           <div className="advanced-grid">
             <FormGroup>
-              <Label for="driftThreshold">Допуск отклонения (%)</Label>
+              <Label for="driftThreshold">{t('advanced.driftThreshold')}</Label>
               <Input
                 id="driftThreshold"
                 type="number"
@@ -779,10 +817,10 @@ const BalanceForm = () => {
                 placeholder="0"
                 onChange={(e) => setDriftThreshold(e.target.value)}
               />
-              <FormText>Для режима полной балансировки: не ребалансировать, если отклонение ниже порога.</FormText>
+              <FormText>{t('advanced.driftHint')}</FormText>
             </FormGroup>
             <FormGroup>
-              <Label for="minTradeAmount">Минимальная сделка</Label>
+              <Label for="minTradeAmount">{t('advanced.minTrade')}</Label>
               <Input
                 id="minTradeAmount"
                 type="number"
@@ -792,7 +830,7 @@ const BalanceForm = () => {
                 placeholder="0"
                 onChange={(e) => setMinTradeAmount(e.target.value)}
               />
-              <FormText>Сделки меньше порога будут округлены до нуля в разбивке по позициям.</FormText>
+              <FormText>{t('advanced.minTradeHint')}</FormText>
             </FormGroup>
           </div>
         </section>
@@ -801,17 +839,21 @@ const BalanceForm = () => {
           <h2 className="form-section__title" id="section-contribution">
             <span className="form-section__number">5</span>
             <span>
-              {isRebalanceMode ? 'Дополнительный взнос (необязательно)' : 'Новый взнос'}
+              {isRebalanceMode
+                ? t('contribution.rebalanceTitle')
+                : t('contribution.title')}
               <small>
                 {isRebalanceMode
-                  ? 'Можно оставить 0 для чистой балансировки'
-                  : 'Сумма для распределения между активами'}
+                  ? t('contribution.rebalanceSubtitle')
+                  : t('contribution.subtitle')}
               </small>
             </span>
           </h2>
           <FormGroup className="form-group">
             <Label for="contributionAmount">
-              {isRebalanceMode ? 'Дополнительная сумма' : 'Сумма, которую хотите внести'}
+              {isRebalanceMode
+                ? t('contribution.rebalanceLabel')
+                : t('contribution.label')}
             </Label>
             <div className="contribution-row">
               <Input
@@ -831,7 +873,7 @@ const BalanceForm = () => {
                 className: 'contribution-row__currency number-field',
                 name: 'contributionAmount_currency',
                 value: contributionAmount.currency,
-                ariaLabel: 'Валюта взноса',
+                ariaLabel: t('contribution.currency'),
                 onChange: changeContribution,
               })}
             </div>
@@ -855,7 +897,7 @@ const BalanceForm = () => {
                   role="status"
                   aria-hidden="true"
                 />
-                Расчёт…
+                {t('action.calculating')}
               </>
             ) : (
               t('action.calculate')
@@ -876,8 +918,8 @@ const BalanceForm = () => {
           {shareMessage && <p className="form-actions__hint">{shareMessage}</p>}
           <p className="form-actions__hint">
             {isRebalanceMode
-              ? 'Расчёт покажет покупки и продажи по классам активов.'
-              : 'Расчёт покажет, какую часть взноса направить в акции и облигации.'}
+              ? t('form.rebalanceHint')
+              : t('form.contributionHint')}
           </p>
         </div>
       </Form>
@@ -888,13 +930,13 @@ const BalanceForm = () => {
         aria-labelledby="section-result"
       >
         <h2 className="form-section__title visually-hidden" id="section-result">
-          Результат
+          {t('result.section')}
         </h2>
 
         {isSuccess && (
           <div className="result-card" role="status" aria-live="polite">
             <div className="result-card__header">
-              <h3 className="result-card__title">Результат расчёта</h3>
+              <h3 className="result-card__title">{t('result.title')}</h3>
               <div className="result-card__actions">
                 <Button type="button" color="secondary" outline size="sm" onClick={handleCopyResult}>
                   {t('action.copy')}
@@ -913,7 +955,7 @@ const BalanceForm = () => {
                   className="result-card__edit"
                   onClick={() => setResult(null)}
                 >
-                  Изменить
+                  {t('action.edit')}
                 </Button>
               </div>
             </div>
@@ -922,8 +964,8 @@ const BalanceForm = () => {
               <div className="result-metric result-metric--stock">
                 <span className="result-metric__label">
                   {isRebalanceMode || (result.stocksAmount ?? 0) < 0
-                    ? 'Акции'
-                    : 'Докупить акции'}
+                    ? t('asset.stocks')
+                    : t('result.buyStocks')}
                 </span>
                 <span className="result-metric__value">
                   {result.stocksAmount != null
@@ -938,8 +980,8 @@ const BalanceForm = () => {
               <div className="result-metric result-metric--bond">
                 <span className="result-metric__label">
                   {isRebalanceMode || (result.bondsAmount ?? 0) < 0
-                    ? 'Облигации'
-                    : 'Докупить облигации'}
+                    ? t('asset.bonds')
+                    : t('result.buyBonds')}
                 </span>
                 <span className="result-metric__value">
                   {result.bondsAmount != null
@@ -953,7 +995,7 @@ const BalanceForm = () => {
               </div>
               {(result.cashAmount != null && result.cashAmount !== 0) && (
                 <div className="result-metric result-metric--cash">
-                  <span className="result-metric__label">Наличные</span>
+                  <span className="result-metric__label">{t('asset.cash')}</span>
                   <span className="result-metric__value">
                     {formatSignedAmount(
                       result.cashAmount,
@@ -969,7 +1011,7 @@ const BalanceForm = () => {
               <div
                 className="result-share-bar"
                 role="img"
-                aria-label={`Акции ${resultStockSharePct}% операции`}
+                aria-label={t('result.operationAria', { value: resultStockSharePct })}
               >
                 <span
                   className="result-share-bar__segment result-share-bar__segment--stock"
@@ -979,24 +1021,24 @@ const BalanceForm = () => {
               </div>
             )}
 
-            {result.contributionOnlyNote && (
+            {localizedContributionNote && (
               <Alert color="info" className="result-note">
-                {result.contributionOnlyNote}
+                {localizedContributionNote}
               </Alert>
             )}
 
-            {result.toleranceNote && (
+            {localizedToleranceNote && (
               <Alert color="info" className="result-note">
-                {result.toleranceNote}
+                {localizedToleranceNote}
               </Alert>
             )}
 
-            {renderBreakdown('Акции', 'stock', result.stocksBreakdown)}
-            {renderBreakdown('Облигации', 'bond', result.bondsBreakdown)}
-            {renderBreakdown('Наличные', 'cash', result.cashBreakdown)}
+            {renderBreakdown(t('asset.stocks'), 'stock', result.stocksBreakdown)}
+            {renderBreakdown(t('asset.bonds'), 'bond', result.bondsBreakdown)}
+            {renderBreakdown(t('asset.cash'), 'cash', result.cashBreakdown)}
 
-            <p className="result-disclaimer">{result.fxDisclaimer}</p>
-            <p className="result-disclaimer">{BREAKDOWN_ESTIMATE_NOTE}</p>
+            <p className="result-disclaimer">{localizedFxDisclaimer}</p>
+            <p className="result-disclaimer">{t('result.breakdownEstimate')}</p>
             {exportMessage && <p className="form-actions__hint">{exportMessage}</p>}
           </div>
         )}

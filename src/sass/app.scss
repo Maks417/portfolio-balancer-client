@@ -537,6 +537,18 @@ input[type="number"] {
         color: $color-bond-dark !important;
       }
     }
+
+    &--cash {
+      @include accent-surface($color-cash-light, $color-cash-border, $color-cash-dark);
+
+      &:hover,
+      &:focus,
+      &:active {
+        background: rgba($color-cash, 0.14) !important;
+        border-color: $color-cash !important;
+        color: $color-cash-dark !important;
+      }
+    }
   }
 
   .btn-calculate {
@@ -860,11 +872,6 @@ input[type="number"] {
   .asset-class__total {
     color: $color-cash-dark;
   }
-}
-
-.btn-add-position--cash {
-  border-color: $color-cash-border;
-  color: $color-cash-dark;
 }
 
 .result-metric--cash {
