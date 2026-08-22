@@ -1,4 +1,3 @@
-import axios from 'axios';
 import { parseApiFieldErrors } from '../utils/portfolioFormUtils';
 import { translate } from '../i18n/translations';
 
@@ -43,7 +42,7 @@ export function mapApiError(error, locale = 'ru') {
     };
   }
 
-  if (error.code === 'ECONNABORTED') {
+  if (error.code === 'ECONNABORTED' || error.name === 'TimeoutError' || error.name === 'AbortError') {
     return {
       code: ERROR_CODES.timeout,
       summary: errorMessage(ERROR_CODES.timeout, locale),
@@ -51,8 +50,8 @@ export function mapApiError(error, locale = 'ru') {
     };
   }
 
-  const status = error.response?.status;
-  const data = error.response?.data;
+  const status = error.status ?? error.response?.status;
+  const data = error.data ?? error.response?.data;
 
   if (status === 400) {
     const { fieldErrors, summary } = parseApiFieldErrors(data, locale);
@@ -78,49 +77,64 @@ export function mapApiError(error, locale = 'ru') {
   };
 }
 
-function createClient() {
-  const baseUrl = getApiBaseUrl();
-  if (!baseUrl) {
-    return null;
+function createTimeoutSignal() {
+  if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
+    return AbortSignal.timeout(REQUEST_TIMEOUT_MS);
   }
 
-  return axios.create({
-    baseURL: baseUrl,
-    timeout: REQUEST_TIMEOUT_MS,
-    headers: { 'Content-Type': 'application/json' },
-  });
+  const controller = new AbortController();
+  setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  return controller.signal;
+}
+
+async function request(path, { method = 'GET', body, locale = 'ru' } = {}) {
+  const baseUrl = getApiBaseUrl();
+  if (!baseUrl) {
+    throw Object.assign(new Error(errorMessage(ERROR_CODES.config, locale)), {
+      code: ERROR_CODES.config,
+    });
+  }
+
+  try {
+    const response = await fetch(`${baseUrl}${path}`, {
+      method,
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: body == null ? undefined : JSON.stringify(body),
+      signal: createTimeoutSignal(),
+    });
+
+    let data = null;
+    const contentType = response.headers.get('content-type') ?? '';
+    if (contentType.includes('application/json')) {
+      data = await response.json();
+    } else {
+      const text = await response.text();
+      data = text || null;
+    }
+
+    if (!response.ok) {
+      throw mapApiError({ status: response.status, data }, locale);
+    }
+
+    return data;
+  } catch (error) {
+    if (error.code && error.summary) {
+      throw error;
+    }
+    throw mapApiError(error, locale);
+  }
 }
 
 export async function fetchRates(locale = 'ru') {
-  const client = createClient();
-  if (!client) {
-    throw Object.assign(new Error(errorMessage(ERROR_CODES.config, locale)), {
-      code: ERROR_CODES.config,
-    });
-  }
-
-  try {
-    const response = await client.get('/portfolio/rates');
-    return response.data;
-  } catch (error) {
-    throw mapApiError(error, locale);
-  }
+  return request('/portfolio/rates', { locale });
 }
 
 export async function calculatePortfolio(payload, locale = 'ru') {
-  const client = createClient();
-  if (!client) {
-    throw Object.assign(new Error(errorMessage(ERROR_CODES.config, locale)), {
-      code: ERROR_CODES.config,
-    });
-  }
-
-  try {
-    const response = await client.post('/portfolio/calculate', payload);
-    return response.data;
-  } catch (error) {
-    throw mapApiError(error, locale);
-  }
+  return request('/portfolio/calculate', {
+    method: 'POST',
+    body: payload,
+    locale,
+  });
 }
 
 export { parseApiFieldErrors };

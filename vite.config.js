@@ -1,5 +1,4 @@
 import { defineConfig } from 'vite';
-import react from '@vitejs/plugin-react';
 
 function assertApiBaseUrl() {
   const apiBaseUrl = process.env.VITE_API_BASE_URL;
@@ -16,7 +15,6 @@ export default defineConfig(({ mode }) => {
   }
 
   return {
-    plugins: [react()],
     base: '/portfolio-balancer-client/',
     server: {
       port: 3000,

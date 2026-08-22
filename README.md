@@ -7,7 +7,7 @@ Web client for the Portfolio Balancer service. Enter your current stock and bond
 
 **Live demo:** [https://maks417.github.io/portfolio-balancer-client](https://maks417.github.io/portfolio-balancer-client)
 
-The UI is in Russian.
+The UI is in Russian (with English locale switch).
 
 ## Features
 
@@ -21,11 +21,9 @@ The UI is in Russian.
 
 ## Tech stack
 
-- [React](https://react.dev/) 19
+- Vanilla JavaScript (ES modules)
 - [Vite](https://vite.dev/) 8
-- [React Router](https://reactrouter.com/) 7
-- [Reactstrap](https://reactstrap.github.io/) / Bootstrap 5
-- [Axios](https://axios-http.com/) for API requests
+- Native `fetch` for API requests
 - [Vitest](https://vitest.dev/) for unit tests
 - Sass
 
@@ -83,19 +81,17 @@ Configure the `VITE_API_BASE_URL` repository secret in GitHub so the build and t
 ```
 src/
 ├── api/
-│   └── portfolioApi.js       # API client and error mapping
-├── components/
-│   ├── BalanceForm.jsx       # Main calculator form
-│   ├── Home.jsx
-│   ├── Layout.jsx
-│   └── NotFound.jsx
-├── utils/
-│   ├── portfolioFormUtils.js # Validation, FX preview, formatting
-│   └── scenarioStorage.js      # URL scenarios and local draft
+│   └── portfolioApi.js       # fetch client and error mapping
+├── pages/                    # route mounts (home, compare, 404)
+├── ui/                       # calculator form, dialogs, glide path
+├── utils/                    # validation, FX preview, scenarios, CSV
+├── i18n/
+│   └── translations.js
 ├── sass/
-├── App.jsx
-└── index.jsx
-contracts/                      # Golden API fixtures for tests
+├── main.js
+├── router.js
+└── locale.js
+contracts/                    # Golden API fixtures for tests
 ```
 
 ## Platform scope
