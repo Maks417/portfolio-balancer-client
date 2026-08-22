@@ -5,8 +5,8 @@ import { computeGlidePathRatio } from './glidePath';
 import { parseTinkoffCsv } from './brokerCsvParsers';
 
 describe('parsePositionsCsv', () => {
-  it('parses generic csv with headers', () => {
-    const result = parsePositionsCsv(
+  it('parses generic csv with headers', async () => {
+    const result = await parsePositionsCsv(
       'class,value,currency\nstocks,100000,rub\nbonds,50000,rub',
     );
     expect(result.ok).toBe(true);

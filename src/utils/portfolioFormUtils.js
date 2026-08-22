@@ -13,7 +13,7 @@ export const ALLOCATION_PRESETS = [
   { label: '80/20', ratio: '80/20', slider: 80 },
   { label: '100 (акции)', ratio: '100', slider: 100 },
   { label: '0 (облигации)', ratio: '0', slider: 0 },
-  { label: '60/30/10', ratio: '60/30/10', slider: 60, threeWay: true },
+  { label: '60/30/10', ratio: '60/30/10', slider: 60 },
 ];
 
 export const DEFAULT_FX_RATES = { rub: 1, usd: 90, eur: 100 };
@@ -34,14 +34,6 @@ export function setFxRates(ratesPerUnitInRub, metadata = null) {
     eur: ratesPerUnitInRub.eur ?? DEFAULT_FX_RATES.eur,
   };
   activeFxMeta = metadata;
-}
-
-export function getFxRates() {
-  return { ...activeFxRates };
-}
-
-export function getFxMeta() {
-  return activeFxMeta;
 }
 
 export function formatFxDisclaimer(fxMeta = activeFxMeta, locale = 'ru') {
@@ -174,15 +166,35 @@ export function getRatioParts(text) {
   return { stocks: 50, bonds: 50, cash: 0 };
 }
 
-export function ratioTextFromSlider(stocksPercent) {
-  const bondsPart = 100 - stocksPercent;
-  if (bondsPart === 0) {
+export function ratioTextFromSlider(stocksPercent, cashPercent = 0) {
+  const cash = Math.min(100, Math.max(0, Number(cashPercent) || 0));
+  const maxStocks = 100 - cash;
+  const stocks = Math.min(maxStocks, Math.max(0, Number(stocksPercent) || 0));
+  const bonds = maxStocks - stocks;
+
+  if (cash > 0) {
+    return `${stocks}/${bonds}/${cash}`;
+  }
+  if (bonds === 0) {
     return '100';
   }
-  if (bondsPart === 100) {
+  if (stocks === 0) {
     return '0';
   }
-  return `${stocksPercent}/${bondsPart}`;
+  return `${stocks}/${bonds}`;
+}
+
+/** Scale a 2-way glide stocks/bonds result into the non-cash remainder. */
+export function applyCashToRatioParts(stocksPct, bondsPct, cashPct = 0) {
+  const cash = Math.min(100, Math.max(0, Math.round(Number(cashPct) || 0)));
+  if (cash <= 0) {
+    return ratioTextFromSlider(stocksPct, 0);
+  }
+  const remainder = 100 - cash;
+  const stockShare = (Number(stocksPct) || 0) / 100;
+  const stocks = Math.round(remainder * stockShare);
+  const bonds = remainder - stocks;
+  return `${stocks}/${bonds}/${cash}`;
 }
 
 export function normalizeDiffAmount(value) {
@@ -306,37 +318,16 @@ export function getCurrentAllocation(
       }
       return Math.max(...drifts);
     },
-    isDriftHigh(targetStockPct, threshold = 10) {
-      return hasPositions ? Math.abs(currentStockPct - targetStockPct) >= threshold : false;
+    isDriftHigh(targetsOrStockPct, threshold = 10) {
+      if (!hasPositions) {
+        return false;
+      }
+      if (targetsOrStockPct != null && typeof targetsOrStockPct === 'object') {
+        return this.maxDrift(targetsOrStockPct) >= threshold;
+      }
+      return Math.abs(currentStockPct - (targetsOrStockPct ?? 0)) >= threshold;
     },
   };
-}
-
-export function waterfillEqual(values, budget) {
-  const n = values.length;
-  if (n === 0 || budget <= 0) {
-    return values.map(() => 0);
-  }
-  const sum = values.reduce((a, b) => a + b, 0);
-  const target = (sum + budget) / n;
-  const need = values.map((v) => Math.max(0, target - v));
-  const needSum = need.reduce((a, b) => a + b, 0);
-  const leftover = budget - needSum;
-  return need.map((v) => v + leftover / n);
-}
-
-export function distributeBuys(rows, budgetAmount, budgetCurrency, rates = activeFxRates) {
-  if (!Array.isArray(rows) || rows.length === 0 || !(budgetAmount > 0)) {
-    return [];
-  }
-  const budgetBase = toBase(budgetAmount, budgetCurrency, rates);
-  const baseValues = rows.map((row) => toBase(row.value, row.currency, rates));
-  const baseBuys = waterfillEqual(baseValues, budgetBase);
-  return rows.map((row, i) => ({
-    currency: row.currency,
-    amount: fromBase(baseBuys[i], row.currency, rates),
-    isSell: false,
-  }));
 }
 
 export function mapServerBreakdown(rows) {

@@ -1,19 +1,6 @@
-function parseDelimitedLine(line, delimiter = ';') {
-  return line.split(delimiter).map((cell) => cell.trim().replace(/^"|"$/g, ''));
-}
+import { detectDelimiter, normalizeCurrency, parseAmount, parseDelimitedLine } from './csvShared';
 
-function normalizeCurrency(value) {
-  const key = String(value ?? '').trim().toLowerCase();
-  if (['usd', 'us$', '$'].includes(key)) {
-    return 'usd';
-  }
-  if (['eur', '€', 'euro'].includes(key)) {
-    return 'eur';
-  }
-  return 'rub';
-}
-
-function mapTinkoffType(type) {
+function mapBrokerType(type) {
   const normalized = String(type ?? '').toLowerCase();
   if (normalized.includes('облига')) {
     return 'bonds';
@@ -24,7 +11,7 @@ function mapTinkoffType(type) {
   return 'stocks';
 }
 
-function buildResult(stocksValues, bondsValues, cashValues) {
+function buildResult(stocksValues, bondsValues, cashValues, source) {
   const total = stocksValues.length + bondsValues.length + cashValues.length;
   if (total === 0) {
     return null;
@@ -32,7 +19,7 @@ function buildResult(stocksValues, bondsValues, cashValues) {
   return {
     ok: true,
     assets: { stocksValues, bondsValues, cashValues },
-    source: 'tinkoff',
+    source,
   };
 }
 
@@ -63,12 +50,8 @@ export function parseTinkoffCsv(text) {
 
   for (const line of lines.slice(1)) {
     const cells = parseDelimitedLine(line);
-    const assetClass = mapTinkoffType(cells[typeIndex]);
-    const value = parseFloat(
-      String(cells[valueIndex] ?? '')
-        .replace(/\s/g, '')
-        .replace(',', '.'),
-    );
+    const assetClass = mapBrokerType(cells[typeIndex]);
+    const value = parseAmount(cells[valueIndex]);
     const currency = normalizeCurrency(cells[currencyIndex >= 0 ? currencyIndex : '']);
 
     if (!Number.isFinite(value) || value <= 0) {
@@ -85,7 +68,7 @@ export function parseTinkoffCsv(text) {
     }
   }
 
-  return buildResult(stocksValues, bondsValues, cashValues);
+  return buildResult(stocksValues, bondsValues, cashValues, 'tinkoff');
 }
 
 export function parseGenericBrokerCsv(text) {
@@ -98,7 +81,7 @@ export function parseGenericBrokerCsv(text) {
     return null;
   }
 
-  const delimiter = lines[0].includes(';') ? ';' : ',';
+  const delimiter = detectDelimiter(lines[0]);
   const header = parseDelimitedLine(lines[0], delimiter).map((cell) => cell.toLowerCase());
   const nameIndex = header.findIndex((h) =>
     ['ticker', 'symbol', 'инструмент', 'название', 'name'].some((key) => h.includes(key)),
@@ -121,12 +104,8 @@ export function parseGenericBrokerCsv(text) {
   for (const line of lines.slice(1)) {
     const cells = parseDelimitedLine(line, delimiter);
     const rawType = typeIndex >= 0 ? cells[typeIndex] : cells[nameIndex >= 0 ? nameIndex : 0];
-    const assetClass = mapTinkoffType(rawType);
-    const value = parseFloat(
-      String(cells[valueIndex] ?? '')
-        .replace(/\s/g, '')
-        .replace(',', '.'),
-    );
+    const assetClass = mapBrokerType(rawType);
+    const value = parseAmount(cells[valueIndex]);
 
     if (!Number.isFinite(value) || value <= 0) {
       continue;
@@ -142,7 +121,7 @@ export function parseGenericBrokerCsv(text) {
     }
   }
 
-  return buildResult(stocksValues, bondsValues, cashValues);
+  return buildResult(stocksValues, bondsValues, cashValues, 'generic');
 }
 
 export function parseBrokerCsv(text) {

@@ -1,5 +1,5 @@
-import { parseBrokerCsv } from './brokerCsvParsers';
 import { translate } from '../i18n/translations';
+import { detectDelimiter, normalizeCurrency, parseAmount, parseDelimitedLine } from './csvShared';
 
 const CLASS_ALIASES = {
   stock: 'stocks',
@@ -16,40 +16,9 @@ const CLASS_ALIASES = {
   рубли: 'cash',
 };
 
-const CURRENCY_ALIASES = {
-  rub: 'rub',
-  rur: 'rub',
-  руб: 'rub',
-  рубль: 'rub',
-  usd: 'usd',
-  'us$': 'usd',
-  dollar: 'usd',
-  eur: 'eur',
-  euro: 'eur',
-};
-
 function normalizeClass(value) {
   const key = String(value ?? '').trim().toLowerCase();
   return CLASS_ALIASES[key] ?? null;
-}
-
-function normalizeCurrency(value) {
-  const key = String(value ?? '').trim().toLowerCase();
-  return CURRENCY_ALIASES[key] ?? (key.length === 3 ? key : 'rub');
-}
-
-function parseDelimitedLine(line, delimiter) {
-  return line.split(delimiter).map((cell) => cell.trim().replace(/^"|"$/g, ''));
-}
-
-function detectDelimiter(headerLine) {
-  if (headerLine.includes(';')) {
-    return ';';
-  }
-  if (headerLine.includes('\t')) {
-    return '\t';
-  }
-  return ',';
 }
 
 function emptyAssets() {
@@ -71,7 +40,7 @@ function pushPosition(assets, assetClass, value, currency) {
   }
 }
 
-export function parsePositionsCsv(text, locale = 'ru') {
+export async function parsePositionsCsv(text, locale = 'ru') {
   const lines = text
     .split(/\r?\n/)
     .map((line) => line.trim())
@@ -87,13 +56,12 @@ export function parsePositionsCsv(text, locale = 'ru') {
     ['class', 'type', 'класс', 'тип', 'asset', 'актив'].includes(cell),
   );
 
-  if (hasStandardHeader) {
-    return parseStandardCsv(lines, delimiter, header, locale);
-  }
-
-  const brokerResult = parseBrokerCsv(text);
-  if (brokerResult) {
-    return brokerResult;
+  if (!hasStandardHeader) {
+    const { parseBrokerCsv } = await import('./brokerCsvParsers.js');
+    const brokerResult = parseBrokerCsv(text);
+    if (brokerResult) {
+      return brokerResult;
+    }
   }
 
   return parseStandardCsv(lines, delimiter, header, locale);
@@ -141,7 +109,7 @@ function parseStandardCsv(lines, delimiter, header, locale) {
       assetClass = 'stocks';
     }
 
-    const numericValue = parseFloat(String(value).replace(/\s/g, '').replace(',', '.'));
+    const numericValue = parseAmount(value);
     if (!assetClass || !Number.isFinite(numericValue) || numericValue <= 0) {
       continue;
     }

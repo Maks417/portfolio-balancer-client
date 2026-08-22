@@ -7,8 +7,6 @@ $color-primary-strong: #1e3a8a;
 $color-border-primary: $color-primary;
 
 // Two-accent scheme: stocks = blue, bonds = green.
-// Light/border/text variants mirror the design mock (soft tint bg, subtle
-// border, and a ~32%-darkened tone for accent text).
 $color-stock: #2e6fed;
 $color-stock-light: rgba($color-stock, 0.08);
 $color-stock-border: rgba($color-stock, 0.18);
@@ -29,13 +27,9 @@ $color-page-bg: #f3f7fb;
 $color-page-bg-deep: #e8f0f8;
 $color-white: #fff;
 $color-surface: #ffffff;
-$color-surface-raised: #f8fafc;
 $color-text: #0f172a;
-$color-light-black: $color-text;
 $color-muted: #64748b;
-$color-muted-strong: #475569;
 $color-border: #dbe5f0;
-$color-light-gray: $color-border;
 $color-gray: #eef3f8;
 $color-section-bg: #f8fbff;
 
@@ -46,13 +40,6 @@ $color-danger: #dc2626;
 $color-danger-bg: #fef2f2;
 $color-warning: #b45309;
 $color-warning-bg: #fffbeb;
-$color-red: $color-danger;
-
-// Legacy aliases
-$color-primary-dark: $color-primary-hover;
-$color-dark-blue: $color-primary-strong;
-$color-blue: $color-primary;
-$color-border-blue: $color-border-primary;
 
 // Typography
 $font-family-base: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -65,7 +52,6 @@ $body-padding: 0;
 $page-padding-mobile: 16px;
 $page-padding-desktop: 32px;
 $primary-button-padding: 0.85rem 1.25rem;
-$form-field-margin: 5px;
 $card-max-width: 560px;
 $card-radius: 28px;
 $section-radius: 20px;
@@ -74,16 +60,14 @@ $card-shadow: 0 24px 70px rgba(15, 23, 42, 0.12);
 $card-padding-mobile: 20px;
 $card-padding-desktop: 36px;
 
-// Shared accent helpers to avoid repeating the stock/bond variant pairs.
 @mixin accent-surface($light, $border, $dark) {
   background: $light;
   border-color: $border;
   color: $dark;
 }
 
-// Stacked stock/bond proportion bar: two segments (stock first, sized inline;
-// bond second, fills the rest). Targets the segments positionally so it fits
-// both the distribution bar and the results share bar regardless of BEM naming.
+// Stacked proportion bar: stock / bond / optional cash segments.
+// Explicit widths drive 3-way bars; bond without width flexes to fill (2-way).
 @mixin stacked-bar($height) {
   display: flex;
   height: $height;
@@ -94,14 +78,28 @@ $card-padding-desktop: 36px;
   > span {
     display: block;
     height: 100%;
+    flex: 0 0 auto;
+  }
 
-    &:first-child {
-      background: $color-stock;
-    }
+  > .distribution__segment--stock,
+  > .result-share-bar__segment--stock,
+  > .result-share__segment--stock {
+    background: $color-stock;
+  }
 
-    &:last-child {
+  > .distribution__segment--bond,
+  > .result-share-bar__segment--bond,
+  > .result-share__segment--bond {
+    background: $color-bond;
+
+    &:not([style]) {
       flex: 1;
-      background: $color-bond;
     }
+  }
+
+  > .distribution__segment--cash,
+  > .result-share-bar__segment--cash,
+  > .result-share__segment--cash {
+    background: $color-cash;
   }
 }

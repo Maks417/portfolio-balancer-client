@@ -1,15 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
+  applyCashToRatioParts,
   buildCalculatePayload,
-  distributeBuys,
   getCurrentAllocation,
+  getRatioParts,
   mapServerBreakdown,
   normalizeDiffAmount,
   parseApiFieldErrors,
+  ratioTextFromSlider,
   setFxRates,
   validateRatioText,
-  waterfillEqual,
 } from './portfolioFormUtils';
+import { computeGlidePathRatio, withPreservedCash } from './glidePath';
 
 describe('validateRatioText', () => {
   it('accepts 100, 0 and valid fractions', () => {
@@ -22,6 +24,30 @@ describe('validateRatioText', () => {
   it('rejects invalid fractions', () => {
     expect(validateRatioText('70/40')).toBe('is-invalid');
     expect(validateRatioText('abc')).toBe('is-invalid');
+  });
+});
+
+describe('ratioTextFromSlider', () => {
+  it('preserves cash when sliding stocks', () => {
+    expect(ratioTextFromSlider(60, 10)).toBe('60/30/10');
+    expect(ratioTextFromSlider(70, 10)).toBe('70/20/10');
+    expect(ratioTextFromSlider(90, 10)).toBe('90/0/10');
+  });
+
+  it('clamps stocks to the non-cash remainder', () => {
+    expect(ratioTextFromSlider(100, 10)).toBe('90/0/10');
+  });
+
+  it('keeps 2-way text when cash is zero', () => {
+    expect(ratioTextFromSlider(60, 0)).toBe('60/40');
+    expect(ratioTextFromSlider(100, 0)).toBe('100');
+    expect(ratioTextFromSlider(0, 0)).toBe('0');
+  });
+});
+
+describe('applyCashToRatioParts', () => {
+  it('scales stocks/bonds into non-cash remainder', () => {
+    expect(applyCashToRatioParts(60, 40, 10)).toBe('54/36/10');
   });
 });
 
@@ -66,9 +92,16 @@ describe('allocation and distribution', () => {
     expect(allocation.currentStockPct).toBe(50);
   });
 
-  it('waterfills budget across positions', () => {
-    const buys = waterfillEqual([10, 30], 20);
-    expect(buys.reduce((a, b) => a + b, 0)).toBe(20);
+  it('computes maxDrift with cash targets', () => {
+    setFxRates({ rub: 1, usd: 1, eur: 1 });
+    const allocation = getCurrentAllocation(
+      [{ value: '60', currency: 'rub' }],
+      [{ value: '30', currency: 'rub' }],
+      [{ value: '10', currency: 'rub' }],
+    );
+    expect(allocation.maxDrift({ stocks: 50, bonds: 40, cash: 10 })).toBe(10);
+    expect(allocation.isDriftHigh({ stocks: 60, bonds: 30, cash: 10 })).toBe(false);
+    expect(allocation.isDriftHigh({ stocks: 50, bonds: 40, cash: 10 })).toBe(true);
   });
 
   it('maps server breakdown rows', () => {
@@ -80,23 +113,32 @@ describe('allocation and distribution', () => {
     expect(rows[1].isSell).toBe(true);
   });
 
-  it('builds calculate payload with mode', () => {
+  it('builds calculate payload with mode and cashValues', () => {
     const payload = buildCalculatePayload({
-      ratio: { text: '50/50' },
+      ratio: { text: '60/30/10' },
       assets: {
         stocksValues: [{ value: '10', currency: 'rub' }],
         bondsValues: [{ value: '10', currency: 'rub' }],
+        cashValues: [{ value: '5', currency: 'rub' }],
       },
       contributionAmount: { value: '100', currency: 'rub' },
       calculationMode: 'rebalance',
     });
     expect(payload.mode).toBe('rebalance');
     expect(payload.contributionAmount.value).toBe('100');
+    expect(payload.cashValues).toEqual([{ value: '5', currency: 'rub' }]);
+    expect(payload.stockValues).toEqual([{ value: '10', currency: 'rub' }]);
+    expect(payload.bondValues).toEqual([{ value: '10', currency: 'rub' }]);
   });
 });
 
-describe('distributeBuys', () => {
-  it('returns empty array for invalid budget', () => {
-    expect(distributeBuys([], 0, 'rub')).toEqual([]);
+describe('glide path cash preservation', () => {
+  it('preserves cash when applying glide result', () => {
+    const glide = computeGlidePathRatio({ currentAge: 40, retirementAge: 65 });
+    expect(glide).not.toBeNull();
+    const withCash = withPreservedCash(glide, 10);
+    const parts = getRatioParts(withCash.ratioText);
+    expect(parts.cash).toBe(10);
+    expect(parts.stocks + parts.bonds + parts.cash).toBe(100);
   });
 });

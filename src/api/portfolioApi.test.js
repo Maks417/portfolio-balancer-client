@@ -19,18 +19,28 @@ describe('API contract fixtures', () => {
       assets: {
         stocksValues: requestFixture.stockValues,
         bondsValues: requestFixture.bondValues,
+        cashValues: requestFixture.cashValues,
       },
       contributionAmount: requestFixture.contributionAmount,
       calculationMode: requestFixture.mode,
+      driftThreshold: requestFixture.driftThreshold,
+      minTradeAmount: requestFixture.minTradeAmount,
     });
 
-    expect(payload.ratio).toBe('50/50');
+    expect(payload.ratio).toBe('60/30/10');
     expect(payload.stockValues).toEqual(requestFixture.stockValues);
+    expect(payload.bondValues).toEqual(requestFixture.bondValues);
+    expect(payload.cashValues).toEqual(requestFixture.cashValues);
     expect(payload.mode).toBe('contribution');
+    expect(payload.driftThreshold).toBe(5);
+    expect(payload.minTradeAmount).toBe(1);
   });
 
   it('response fixture defines expected aggregate fields', () => {
-    expect(responseFixture.stocksDiff + responseFixture.bondsDiff).toBe(100);
+    expect(
+      responseFixture.stocksDiff + responseFixture.bondsDiff + responseFixture.cashDiff,
+    ).toBe(100);
     expect(responseFixture.currency).toBe('rub');
+    expect(responseFixture.cashBreakdown).toHaveLength(1);
   });
 });

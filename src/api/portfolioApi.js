@@ -42,7 +42,7 @@ export function mapApiError(error, locale = 'ru') {
     };
   }
 
-  if (error.code === 'ECONNABORTED' || error.name === 'TimeoutError' || error.name === 'AbortError') {
+  if (error.name === 'TimeoutError' || error.name === 'AbortError') {
     return {
       code: ERROR_CODES.timeout,
       summary: errorMessage(ERROR_CODES.timeout, locale),
@@ -50,8 +50,8 @@ export function mapApiError(error, locale = 'ru') {
     };
   }
 
-  const status = error.status ?? error.response?.status;
-  const data = error.data ?? error.response?.data;
+  const status = error.status;
+  const data = error.data;
 
   if (status === 400) {
     const { fieldErrors, summary } = parseApiFieldErrors(data, locale);
@@ -79,12 +79,15 @@ export function mapApiError(error, locale = 'ru') {
 
 function createTimeoutSignal() {
   if (typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function') {
-    return AbortSignal.timeout(REQUEST_TIMEOUT_MS);
+    return { signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS), clear: () => {} };
   }
 
   const controller = new AbortController();
-  setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
-  return controller.signal;
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  return {
+    signal: controller.signal,
+    clear: () => clearTimeout(timer),
+  };
 }
 
 async function request(path, { method = 'GET', body, locale = 'ru' } = {}) {
@@ -95,13 +98,16 @@ async function request(path, { method = 'GET', body, locale = 'ru' } = {}) {
     });
   }
 
+  const { signal, clear } = createTimeoutSignal();
   try {
     const response = await fetch(`${baseUrl}${path}`, {
       method,
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: body == null ? undefined : JSON.stringify(body),
-      signal: createTimeoutSignal(),
+      signal,
     });
+
+    clear();
 
     let data = null;
     const contentType = response.headers.get('content-type') ?? '';
@@ -118,6 +124,7 @@ async function request(path, { method = 'GET', body, locale = 'ru' } = {}) {
 
     return data;
   } catch (error) {
+    clear();
     if (error.code && error.summary) {
       throw error;
     }
@@ -136,5 +143,3 @@ export async function calculatePortfolio(payload, locale = 'ru') {
     locale,
   });
 }
-
-export { parseApiFieldErrors };

@@ -1,12 +1,13 @@
 # Platform roadmap (deferred)
 
-This project intentionally remains **stateless** and **infrastructure-light**. The current stack is a static React client plus a minimal .NET API with no database, message broker, or account system.
+This project intentionally remains **stateless** and **infrastructure-light**. The current stack is a static **React** client (Vite) plus a minimal .NET API with no database, message broker, or account system.
 
 ## What ships today
 
-- Contribution allocation and full rebalance calculations
+- Contribution allocation and full rebalance calculations (including optional cash target leg)
 - Live FX rates from CBR with stale-cache fallback
 - Shareable scenario URLs and local draft persistence (browser only)
+- RU/EN localization
 - Contract fixtures and automated tests on both client and server
 
 ## Deferred until validated demand
@@ -36,4 +37,3 @@ Until then, prefer browser-local state (`localStorage`, URL scenarios) and the e
 - OpenAPI artifact in CI for typed clients
 - Additional FX providers behind `IRateProvider`
 - More asset classes modeled as a weighted list (still stateless)
-- English localization if audience data supports it

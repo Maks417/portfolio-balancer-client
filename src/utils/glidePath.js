@@ -1,4 +1,26 @@
-export function computeGlidePathRatio({ currentAge, retirementAge, stocksAtStart = 90, stocksAtRetirement = 40, startAge = 25 }) {
+function packTwoWayRatio(clampedStocks, bondsPct) {
+  if (bondsPct === 0) {
+    return { ratioText: '100', sliderValue: 100, stocksPct: 100, bondsPct: 0 };
+  }
+  if (clampedStocks === 0) {
+    return { ratioText: '0', sliderValue: 0, stocksPct: 0, bondsPct: 100 };
+  }
+
+  return {
+    ratioText: `${clampedStocks}/${bondsPct}`,
+    sliderValue: clampedStocks,
+    stocksPct: clampedStocks,
+    bondsPct,
+  };
+}
+
+export function computeGlidePathRatio({
+  currentAge,
+  retirementAge,
+  stocksAtStart = 90,
+  stocksAtRetirement = 40,
+  startAge = 25,
+}) {
   const age = Number(currentAge);
   const targetAge = Number(retirementAge);
   const start = Number(stocksAtStart);
@@ -23,19 +45,7 @@ export function computeGlidePathRatio({ currentAge, retirementAge, stocksAtStart
   const clampedStocks = Math.min(100, Math.max(0, stocksPct));
   const bondsPct = 100 - clampedStocks;
 
-  if (bondsPct === 0) {
-    return { ratioText: '100', sliderValue: 100, stocksPct: 100, bondsPct: 0 };
-  }
-  if (clampedStocks === 0) {
-    return { ratioText: '0', sliderValue: 0, stocksPct: 0, bondsPct: 100 };
-  }
-
-  return {
-    ratioText: `${clampedStocks}/${bondsPct}`,
-    sliderValue: clampedStocks,
-    stocksPct: clampedStocks,
-    bondsPct,
-  };
+  return packTwoWayRatio(clampedStocks, bondsPct);
 }
 
 export function computeYearsToGoalRatio({ yearsToGoal, stocksNear = 80, stocksAtGoal = 50 }) {
@@ -52,17 +62,29 @@ export function computeYearsToGoalRatio({ yearsToGoal, stocksNear = 80, stocksAt
   const clampedStocks = Math.min(100, Math.max(0, stocksPct));
   const bondsPct = 100 - clampedStocks;
 
-  if (bondsPct === 0) {
-    return { ratioText: '100', sliderValue: 100, stocksPct: 100, bondsPct: 0 };
+  return packTwoWayRatio(clampedStocks, bondsPct);
+}
+
+/** Apply glide result while preserving an existing cash target percentage. */
+export function withPreservedCash(glideResult, cashPct = 0) {
+  if (!glideResult) {
+    return null;
   }
-  if (clampedStocks === 0) {
-    return { ratioText: '0', sliderValue: 0, stocksPct: 0, bondsPct: 100 };
+  const cash = Math.min(100, Math.max(0, Math.round(Number(cashPct) || 0)));
+  if (cash <= 0) {
+    return glideResult;
   }
 
+  const remainder = 100 - cash;
+  const stockShare = (glideResult.stocksPct ?? 0) / 100;
+  const stocks = Math.round(remainder * stockShare);
+  const bonds = remainder - stocks;
+
   return {
-    ratioText: `${clampedStocks}/${bondsPct}`,
-    sliderValue: clampedStocks,
-    stocksPct: clampedStocks,
-    bondsPct,
+    ratioText: `${stocks}/${bonds}/${cash}`,
+    sliderValue: stocks,
+    stocksPct: stocks,
+    bondsPct: bonds,
+    cashPct: cash,
   };
 }

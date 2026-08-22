@@ -1,0 +1,169 @@
+@import 'variables';
+
+.calculator-result {
+  min-height: 1rem;
+  margin-top: 1rem;
+}
+
+.result-alert {
+  text-align: left;
+  margin-bottom: 0.9rem;
+  font-weight: 700;
+}
+
+.result-card {
+  padding: 1.25rem;
+  background: $color-section-bg;
+  border: 1px solid $color-border;
+  border-radius: $card-radius - 8px;
+  box-shadow: $card-shadow;
+
+  &__header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+  }
+
+  &__title {
+    font-family: $font-family-heading;
+    font-size: 1.1rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    margin: 0;
+    color: $color-text;
+  }
+
+  &__edit {
+    padding: 0;
+    border: none;
+    background: none;
+    color: $color-muted;
+    font-size: 0.85rem;
+    text-decoration: underline;
+
+    &:hover,
+    &:focus,
+    &:active {
+      background: none !important;
+      color: $color-text !important;
+    }
+  }
+}
+
+.result-metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.625rem;
+}
+
+.result-metric {
+  border-radius: $control-radius;
+  padding: 0.9rem 1rem;
+  text-align: left;
+
+  &__label {
+    display: block;
+    font-size: 0.78rem;
+    margin-bottom: 0.25rem;
+    font-weight: 600;
+  }
+
+  &__value {
+    display: block;
+    font-family: $font-family-heading;
+    font-size: clamp(1.15rem, 5vw, 1.4rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+  }
+
+  &--stock {
+    background: $color-stock-light;
+
+    .result-metric__label,
+    .result-metric__value {
+      color: $color-stock-dark;
+    }
+  }
+
+  &--bond {
+    background: $color-bond-light;
+
+    .result-metric__label,
+    .result-metric__value {
+      color: $color-bond-dark;
+    }
+  }
+
+  &--cash {
+    @include accent-surface($color-cash-light, $color-cash-border, $color-cash-dark);
+  }
+}
+
+.result-share-bar {
+  @include stacked-bar(8px);
+  margin-top: 0.85rem;
+}
+
+.result-breakdown {
+  margin-top: 1.1rem;
+
+  &__title {
+    font-family: $font-family-heading;
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin: 0 0 0.5rem;
+
+    &--stock {
+      color: $color-stock-dark;
+    }
+
+    &--bond {
+      color: $color-bond-dark;
+    }
+
+    &--cash {
+      color: $color-cash-dark;
+    }
+  }
+
+  &__row {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 0.45rem 0;
+    font-size: 0.88rem;
+    color: $color-text;
+    border-bottom: 1px solid $color-border;
+  }
+
+  &__amount {
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+
+    &--stock {
+      color: $color-stock-dark;
+    }
+
+    &--bond {
+      color: $color-bond-dark;
+    }
+
+    &--cash {
+      color: $color-cash-dark;
+    }
+  }
+}
+
+.result-disclaimer {
+  margin: 1rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  color: $color-muted;
+}
+
+.result-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}

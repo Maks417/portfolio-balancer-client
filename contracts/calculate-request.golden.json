@@ -1,14 +1,19 @@
 {
-  "ratio": "50/50",
+  "ratio": "60/30/10",
   "stockValues": [
     { "value": "60", "currency": "rub" }
   ],
   "bondValues": [
-    { "value": "40", "currency": "rub" }
+    { "value": "30", "currency": "rub" }
+  ],
+  "cashValues": [
+    { "value": "10", "currency": "rub" }
   ],
   "contributionAmount": {
     "value": "100",
     "currency": "rub"
   },
-  "mode": "contribution"
+  "mode": "contribution",
+  "driftThreshold": 5,
+  "minTradeAmount": 1
 }

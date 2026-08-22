@@ -146,7 +146,3 @@ export function deleteNamedScenario(id) {
 export function loadNamedScenario(id) {
   return readLibrary().find((entry) => entry.id === id)?.state ?? null;
 }
-
-export function decodeScenarioFromParam(encoded) {
-  return decodeScenarioState(encoded);
-}

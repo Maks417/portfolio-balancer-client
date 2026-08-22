@@ -1,0 +1,36 @@
+@import 'variables';
+
+.glide-path {
+  margin-top: 1rem;
+  padding: 1rem;
+  border: 1px solid $color-border;
+  border-radius: $control-radius;
+  background: $color-section-bg;
+
+  &__title {
+    font-size: 0.95rem;
+    margin-bottom: 0.75rem;
+  }
+
+  &__inputs {
+    display: grid;
+    gap: 0.75rem;
+
+    @media (min-width: 576px) {
+      grid-template-columns: 1fr 1fr;
+      align-items: end;
+    }
+
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      margin-bottom: 0;
+
+      > label {
+        min-height: 2.6em;
+        display: flex;
+        align-items: flex-end;
+      }
+    }
+  }
+}

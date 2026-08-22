@@ -1,51 +1,35 @@
 import { formatSignedAmount } from './portfolioFormUtils';
 import { translate } from '../i18n/translations';
 
+const ASSET_CLASSES = [
+  { key: 'stocks', amountKey: 'stocksAmount', breakdownKey: 'stocksBreakdown', exportKey: 'export.stocksBreakdown' },
+  { key: 'bonds', amountKey: 'bondsAmount', breakdownKey: 'bondsBreakdown', exportKey: 'export.bondsBreakdown' },
+  { key: 'cash', amountKey: 'cashAmount', breakdownKey: 'cashBreakdown', exportKey: 'export.cashBreakdown' },
+];
+
 export function buildResultText(result, locale = 'ru') {
   const t = (key, params) => translate(locale, key, params);
   const lines = [t('export.title'), ''];
 
-  if (result.stocksAmount != null) {
-    lines.push(
-      `${t('asset.stocks')}: ${formatSignedAmount(result.stocksAmount, result.currency, result.stocksAmount < 0)}`,
-    );
-  }
-  if (result.bondsAmount != null) {
-    lines.push(
-      `${t('asset.bonds')}: ${formatSignedAmount(result.bondsAmount, result.currency, result.bondsAmount < 0)}`,
-    );
-  }
-  if (result.cashAmount != null) {
-    lines.push(
-      `${t('asset.cash')}: ${formatSignedAmount(result.cashAmount, result.currency, result.cashAmount < 0)}`,
-    );
+  for (const asset of ASSET_CLASSES) {
+    const amount = result[asset.amountKey];
+    if (amount != null) {
+      lines.push(
+        `${t(`asset.${asset.key}`)}: ${formatSignedAmount(amount, result.currency, amount < 0)}`,
+      );
+    }
   }
 
-  if (result.stocksBreakdown?.length) {
-    lines.push('', t('export.stocksBreakdown'));
-    result.stocksBreakdown.forEach((row, index) => {
-      lines.push(
-        `  ${t('asset.position', { number: index + 1 })}: ${formatSignedAmount(row.amount, row.currency, row.isSell)}`,
-      );
-    });
-  }
-
-  if (result.bondsBreakdown?.length) {
-    lines.push('', t('export.bondsBreakdown'));
-    result.bondsBreakdown.forEach((row, index) => {
-      lines.push(
-        `  ${t('asset.position', { number: index + 1 })}: ${formatSignedAmount(row.amount, row.currency, row.isSell)}`,
-      );
-    });
-  }
-
-  if (result.cashBreakdown?.length) {
-    lines.push('', t('export.cashBreakdown'));
-    result.cashBreakdown.forEach((row, index) => {
-      lines.push(
-        `  ${t('asset.position', { number: index + 1 })}: ${formatSignedAmount(row.amount, row.currency, row.isSell)}`,
-      );
-    });
+  for (const asset of ASSET_CLASSES) {
+    const breakdown = result[asset.breakdownKey];
+    if (breakdown?.length) {
+      lines.push('', t(asset.exportKey));
+      breakdown.forEach((row, index) => {
+        lines.push(
+          `  ${t('asset.position', { number: index + 1 })}: ${formatSignedAmount(row.amount, row.currency, row.isSell)}`,
+        );
+      });
+    }
   }
 
   if (result.contributionOnlyNote) {
@@ -79,25 +63,21 @@ export function buildResultCsv(result, locale = 'ru') {
     rows.push([className, t('export.total'), Math.abs(amount).toFixed(2), currency, operation]);
   };
 
-  addClassRow(t('asset.stocks'), result.stocksAmount, result.currency);
-  addClassRow(t('asset.bonds'), result.bondsAmount, result.currency);
-  addClassRow(t('asset.cash'), result.cashAmount, result.currency);
+  for (const asset of ASSET_CLASSES) {
+    addClassRow(t(`asset.${asset.key}`), result[asset.amountKey], result.currency);
+  }
 
-  const addBreakdown = (className, breakdown) => {
-    breakdown?.forEach((row, index) => {
+  for (const asset of ASSET_CLASSES) {
+    result[asset.breakdownKey]?.forEach((row, index) => {
       rows.push([
-        className,
+        t(`asset.${asset.key}`),
         t('asset.position', { number: index + 1 }),
         Math.abs(row.amount).toFixed(2),
         row.currency,
         row.isSell || row.amount < 0 ? t('export.sell') : t('export.buy'),
       ]);
     });
-  };
-
-  addBreakdown(t('asset.stocks'), result.stocksBreakdown);
-  addBreakdown(t('asset.bonds'), result.bondsBreakdown);
-  addBreakdown(t('asset.cash'), result.cashBreakdown);
+  }
 
   return rows.map((row) => row.map(escapeCsvCell).join(',')).join('\n');
 }

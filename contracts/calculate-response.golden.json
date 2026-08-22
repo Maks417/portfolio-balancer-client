@@ -1,6 +1,25 @@
 {
   "stocksDiff": 40,
-  "bondsDiff": 60,
+  "bondsDiff": 50,
+  "cashDiff": 10,
   "currency": "rub",
-  "mode": "contribution"
+  "mode": "contribution",
+  "stocksBreakdown": [
+    { "amount": 40, "currency": "rub", "isSell": false }
+  ],
+  "bondsBreakdown": [
+    { "amount": 50, "currency": "rub", "isSell": false }
+  ],
+  "cashBreakdown": [
+    { "amount": 10, "currency": "rub", "isSell": false }
+  ],
+  "contributionOnlyNote": null,
+  "toleranceNote": null,
+  "fx": {
+    "source": "CBR",
+    "ratesAsOf": "2024-01-01T00:00:00Z",
+    "stale": false,
+    "fromCache": false,
+    "ratesPerUnitInRub": { "usd": 90, "eur": 100 }
+  }
 }
