@@ -583,6 +583,74 @@ export function mountCalculatorForm(container) {
     state.ratioValidClass = validateRatioText(text);
   };
 
+  const patchRatioUi = () => {
+    const ratioParts = getRatioParts(state.ratio.text);
+    const ratioInput = container.querySelector('#ratio');
+    if (ratioInput && document.activeElement !== ratioInput) {
+      ratioInput.value = state.ratio.text;
+    }
+    if (ratioInput) {
+      ratioInput.classList.remove('is-valid', 'is-invalid');
+      if (state.ratioValidClass) {
+        ratioInput.classList.add(state.ratioValidClass);
+      }
+    }
+
+    const stockTile = container.querySelector('.ratio-tile--stock .ratio-tile__value');
+    const bondTile = container.querySelector('.ratio-tile--bond .ratio-tile__value');
+    if (stockTile) {
+      stockTile.textContent = `${ratioParts.stocks}%`;
+    }
+    if (bondTile) {
+      bondTile.textContent = `${ratioParts.bonds}%`;
+    }
+
+    let cashTile = container.querySelector('.ratio-tile--cash');
+    if (ratioParts.cash > 0) {
+      if (!cashTile) {
+        const tiles = container.querySelector('.ratio-tiles');
+        if (tiles) {
+          tiles.insertAdjacentHTML(
+            'beforeend',
+            `<div class="ratio-tile ratio-tile--cash">
+              <span class="ratio-tile__label">${escapeHtml(t('asset.cash'))}</span>
+              <span class="ratio-tile__value">${ratioParts.cash}%</span>
+            </div>`,
+          );
+        }
+      } else {
+        const cashValue = cashTile.querySelector('.ratio-tile__value');
+        if (cashValue) {
+          cashValue.textContent = `${ratioParts.cash}%`;
+        }
+      }
+    } else if (cashTile) {
+      cashTile.remove();
+    }
+
+    const allocation = getCurrentAllocation(
+      state.assets.stocksValues,
+      state.assets.bondsValues,
+      state.assets.cashValues,
+    );
+    const distribution = container.querySelector('.distribution');
+    if (distribution && allocation.hasPositions) {
+      const drift = allocation.driftFrom(ratioParts.stocks);
+      const driftEl = distribution.querySelector('.distribution__drift');
+      if (driftEl) {
+        driftEl.textContent = t('allocation.drift', { value: drift });
+      }
+      const legend = distribution.querySelector('.distribution__legend');
+      if (legend) {
+        legend.innerHTML = `
+          <span>${escapeHtml(t('asset.stocks'))} ${allocation.currentStockPct}%</span>
+          <span>${escapeHtml(t('allocation.target', { value: `${ratioParts.stocks}/${ratioParts.bonds}` }))}</span>
+          <span>${escapeHtml(t('asset.bonds'))} ${allocation.currentBondPct}%</span>
+        `;
+      }
+    }
+  };
+
   const loadRates = () => {
     const requestId = ++ratesRequestId;
     fetchRates(getLocale())
@@ -892,7 +960,11 @@ export function mountCalculatorForm(container) {
         const parts = text.split('/');
         applyRatio(text, Number(parts[0]) || 0);
         persistDraft();
-        render();
+        const slider = container.querySelector('[data-action="ratio-slider"]');
+        if (slider) {
+          slider.value = String(state.ratio.value);
+        }
+        patchRatioUi();
         return;
       }
 
@@ -900,7 +972,8 @@ export function mountCalculatorForm(container) {
         const sliderValue = Number(target.value);
         applyRatio(ratioTextFromSlider(sliderValue), sliderValue);
         persistDraft();
-        render();
+        // Avoid full re-render while dragging — replacing the input breaks mouse drag.
+        patchRatioUi();
         return;
       }
 
@@ -985,6 +1058,11 @@ export function mountCalculatorForm(container) {
       if (action === 'mode') {
         state.calculationMode = target.value;
         persistDraft();
+        render();
+        return;
+      }
+      if (action === 'ratio-slider' || action === 'ratio-text') {
+        // Full render after drag/edit settles so allocation preview stays in sync.
         render();
         return;
       }

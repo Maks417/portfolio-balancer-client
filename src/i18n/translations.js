@@ -131,7 +131,7 @@ export const translations = {
     'compare.delta':
       'Разница в текущей доле акций между сценариями: {value} п.п.',
     'compare.back': 'Вернуться к калькулятору',
-    'glide.title': 'Glide path (целевая пропорция по горизонту)',
+    'glide.title': 'Целевая пропорция по горизонту',
     'glide.byAge': 'По возрасту до пенсии',
     'glide.byGoal': 'По годам до цели',
     'glide.currentAge': 'Текущий возраст',
@@ -299,7 +299,7 @@ export const translations = {
     'compare.delta':
       'Difference in the current stock allocation: {value} percentage points.',
     'compare.back': 'Back to calculator',
-    'glide.title': 'Glide path (target allocation by time horizon)',
+    'glide.title': 'Target allocation by time horizon',
     'glide.byAge': 'By age until retirement',
     'glide.byGoal': 'By years until goal',
     'glide.currentAge': 'Current age',
